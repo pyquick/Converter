@@ -1,0 +1,42 @@
+name: Build wxPython
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+  workflow_dispatch:
+  release:
+    types: [published]
+jobs:
+    build:
+        name: Build wxPython
+        runs-on: macos-15
+        if: github.repository_owner == 'pyquick'
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install Dependencies
+              run: |
+                chmod +x build.command
+                pip3.13 install -r requirements.txt
+            - name: Set up Python 3.13
+              uses: actions/setup-python@v5
+              with:
+                python-version: '3.13'
+            - name: Build Apps
+              run: |
+                ./build.command
+            - name: Create (Pre-)Release on Push
+              if: github.event_name == 'push'
+              uses: softprops/action-gh-release@v2
+              with:
+                tag_name: 0.90
+                name: 1.0Pre
+                body: ${{ github.event.head_commit.message }}
+                prerelease: true
+                files: |
+                    ./dist/AutoPkg-Assets.pkg
+                    ./dist/OCLP-R.pkg
+                    ./dist/OCLP-R-Uninstaller.pkg
+
+

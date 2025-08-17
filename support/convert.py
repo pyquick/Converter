@@ -18,7 +18,20 @@ import shutil
 import subprocess
 from PIL import Image
 
-def create_icns(png_path, icns_path, min_size=16, max_size=None):
+def get_image_info(png_path):
+    """
+    Get information about the PNG image.
+    
+    Args:
+        png_path (str): Path to the input PNG file
+        
+    Returns:
+        tuple: (width, height) of the image
+    """
+    img = Image.open(png_path)
+    return img.width, img.height
+
+def create_icns(png_path, icns_path, min_size=16, max_size=None, progress_callback=None):
     """
     Convert a PNG image to ICNS format using iconset method.
     
@@ -27,17 +40,30 @@ def create_icns(png_path, icns_path, min_size=16, max_size=None):
         icns_path (str): Path for the output ICNS file
         min_size (int): Minimum size for the icon (default: 16)
         max_size (int): Maximum size for the icon (default: original image size)
+        progress_callback (function): Callback function to report progress
     """
     # Open the source image
     img = Image.open(png_path)
     
-    # Determine max size if not provided
+    # Automatically detect image size if not provided
     if max_size is None:
         max_size = min(img.width, img.height)
+        if progress_callback:
+            progress_callback(f"Auto-detected maximum size: {max_size}", 5)
+        else:
+            print(f"Auto-detected maximum size: {max_size}")
+    
+    if progress_callback:
+        progress_callback(f"Source image size: {img.width}x{img.height}", 10)
+    else:
+        print(f"Source image size: {img.width}x{img.height}")
     
     # Ensure the image is square
     if img.width != img.height:
-        print("Warning: Image is not square. Cropping to square.")
+        if progress_callback:
+            progress_callback("Warning: Image is not square. Cropping to square.", 15)
+        else:
+            print("Warning: Image is not square. Cropping to square.")
         min_dimension = min(img.width, img.height)
         left = (img.width - min_dimension) // 2
         top = (img.height - min_dimension) // 2
@@ -55,8 +81,17 @@ def create_icns(png_path, icns_path, min_size=16, max_size=None):
         
         # Generate icons for standard sizes within our range
         generated_sizes = []
+        total_steps = len(standard_sizes) * 2  # Approximate steps
+        current_step = 0
+        
         for size in standard_sizes:
             if min_size <= size <= max_size:
+                current_step += 1
+                if progress_callback:
+                    progress_callback(f"Generating size: {size}x{size}", 20 + int(60 * current_step / total_steps))
+                else:
+                    print(f"Generated size: {size}x{size}")
+                
                 # Create a copy of the image and resize it
                 resized_img = img.copy().resize((size, size), Image.LANCZOS)
                 
@@ -64,44 +99,68 @@ def create_icns(png_path, icns_path, min_size=16, max_size=None):
                 filename = f"icon_{size}x{size}.png"
                 resized_img.save(os.path.join(iconset_dir, filename), "PNG")
                 generated_sizes.append(size)
-                print(f"Generated size: {size}x{size}")
                 
                 # For specific sizes, also generate retina versions
                 retina_pairs = {16: 32, 32: 64, 128: 256, 256: 512, 512: 1024}
                 if size in retina_pairs and retina_pairs[size] <= max_size:
+                    current_step += 1
                     retina_size = retina_pairs[size]
+                    if progress_callback:
+                        progress_callback(f"Generating retina size: {retina_size}x{retina_size}", 20 + int(60 * current_step / total_steps))
+                    else:
+                        print(f"Generated retina size: {retina_size}x{retina_size}")
+                    
                     retina_img = img.copy().resize((retina_size, retina_size), Image.LANCZOS)
                     retina_filename = f"icon_{size}x{size}@2x.png"
                     retina_img.save(os.path.join(iconset_dir, retina_filename), "PNG")
                     generated_sizes.append(retina_size)
-                    print(f"Generated retina size: {retina_size}x{retina_size}")
         
         # Make sure we include max_size if it's not already included
         if max_size not in generated_sizes:
+            if progress_callback:
+                progress_callback(f"Generating max size: {max_size}x{max_size}", 85)
+            else:
+                print(f"Generated max size: {max_size}x{max_size}")
+            
             resized_img = img.copy().resize((max_size, max_size), Image.LANCZOS)
             filename = f"icon_{max_size}x{max_size}.png"
             resized_img.save(os.path.join(iconset_dir, filename), "PNG")
             generated_sizes.append(max_size)
-            print(f"Generated max size: {max_size}x{max_size}")
         
         # Use iconutil to create ICNS file (macOS only)
+        if progress_callback:
+            progress_callback("Creating ICNS file with iconutil...", 90)
+        else:
+            print("Creating ICNS file with iconutil...")
+            
         try:
             subprocess.run(["iconutil", "-c", "icns", iconset_dir, "-o", icns_path], check=True)
-            print(f"Successfully converted {png_path} to {icns_path}")
-            print(f"Generated sizes: {sorted(set(generated_sizes))}")
+            if progress_callback:
+                progress_callback(f"Successfully converted {png_path} to {icns_path}", 100)
+            else:
+                print(f"Successfully converted {png_path} to {icns_path}")
+                print(f"Generated sizes: {sorted(set(generated_sizes))}")
         except subprocess.CalledProcessError as e:
-            print(f"Error creating ICNS with iconutil: {e}")
-            print("Falling back to Pillow method...")
+            if progress_callback:
+                progress_callback(f"Error creating ICNS with iconutil: {e}", 95)
+                progress_callback("Falling back to Pillow method...", 95)
+            else:
+                print(f"Error creating ICNS with iconutil: {e}")
+                print("Falling back to Pillow method...")
             # Fallback to Pillow method if iconutil fails
-            fallback_method(iconset_dir, icns_path)
+            fallback_method(iconset_dir, icns_path, progress_callback)
 
-def fallback_method(iconset_dir, icns_path):
+def fallback_method(iconset_dir, icns_path, progress_callback=None):
     """
     Fallback method using Pillow if iconutil is not available
     """
     icon_files = os.listdir(iconset_dir)
     if not icon_files:
-        print("No icons generated, cannot create ICNS file")
+        error_msg = "No icons generated, cannot create ICNS file"
+        if progress_callback:
+            progress_callback(error_msg, 100)
+        else:
+            print(error_msg)
         return
         
     # Find the largest icon file to use as main image
@@ -127,14 +186,18 @@ def fallback_method(iconset_dir, icns_path):
     else:
         main_img.save(icns_path, format='ICNS')
     
-    print(f"Successfully converted using fallback method to {icns_path}")
+    success_msg = f"Successfully converted using fallback method to {icns_path}"
+    if progress_callback:
+        progress_callback(success_msg, 100)
+    else:
+        print(success_msg)
 
 def main():
     parser = argparse.ArgumentParser(description="Convert PNG to ICNS format")
     parser.add_argument("input", help="Input PNG file path")
     parser.add_argument("output", help="Output ICNS file path")
     parser.add_argument("--min-size", type=int, default=16, help="Minimum icon size (default: 16)")
-    parser.add_argument("--max-size", type=int, help="Maximum icon size (default: original image size)")
+    parser.add_argument("--max-size", type=int, help="Maximum icon size (default: auto-detected from image)")
     
     args = parser.parse_args()
     
@@ -152,6 +215,11 @@ def main():
         sys.exit(1)
     
     try:
+        # Display image information
+        width, height = get_image_info(png_path)
+        print(f"Input image: {png_path}")
+        print(f"Image dimensions: {width}x{height}")
+        
         create_icns(png_path, icns_path, args.min_size, args.max_size)
     except Exception as e:
         print(f"Error converting image: {e}")
