@@ -15,14 +15,15 @@ jobs:
             contents: write
         steps:
             - uses: actions/checkout@v4
-            - name: Install Dependencies
-              run: |
-                chmod +x build.command
-                pip3.13 install -r requirements.txt
             - name: Set up Python 3.13
               uses: actions/setup-python@v5
               with:
                 python-version: '3.13'
+            - name: Install Dependencies
+              run: |
+                chmod +x build.command
+                /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -m pip install -r requirements.txt
+                
             - name: Build Apps
               run: |
                 ./build.command
