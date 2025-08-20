@@ -18,7 +18,8 @@ def setup_ccache():
     
     # Define paths
     ccache_version = "v4.2.1"
-    ccache_url = f"https://nuitka.net/ccache/{ccache_version}/ccache-{ccache_version}.zip"
+    version="4.2.1"
+    ccache_url = f"https://nuitka.net/ccache/{ccache_version}/ccache-{version}.zip"
     cache_dir = f"/Users/{username}/Library/Caches/Nuitka/downloads/ccache/{ccache_version}"
     zip_path = os.path.join(cache_dir, f"ccache-{ccache_version}.zip")
     

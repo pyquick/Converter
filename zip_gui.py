@@ -38,7 +38,7 @@ class ZipGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("ZIP File Processing Tool")
-        self.root.geometry("600x500")
+       # self.root.geometry("600x500")
         self.root.resizable(True, True)
         
         # Variables
@@ -223,13 +223,19 @@ class ZipGUI:
         
     # Browse methods for Create tab
     def browse_create_output(self):
-        filename = filedialog.asksaveasfilename(
-            title="Save ZIP file",
-            defaultextension=".zip",
-            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")]
+        folder = filedialog.askdirectory(
+            title="Select output folder for ZIP file"
         )
-        if filename:
-            self.create_output_path.set(filename)
+        if folder:
+            # 询问用户输入ZIP文件名
+            filename = filedialog.asksaveasfilename(
+                title="Save ZIP file as",
+                initialdir=folder,
+                defaultextension=".zip",
+                filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")]
+            )
+            if filename:
+                self.create_output_path.set(filename)
             
     def add_source_files(self):
         filenames = filedialog.askopenfilenames(

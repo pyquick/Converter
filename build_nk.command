@@ -81,6 +81,7 @@ python3.13 -m nuitka \
     --standalone \
     --enable-plugin=no-qt \
     --macos-create-app-bundle \
+    --macos-app-version=1.0 \
     --macos-app-icon="$PROJECT_DIR/support/Success.icns" \
     --include-data-dir="$PROJECT_DIR/support=support" \
     --output-dir="$DIST_DIR" \
@@ -96,6 +97,7 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
         --standalone \
         --macos-create-app-bundle \
         --enable-plugin=no-qt \
+        --macos-app-version=1.0 \
         --macos-app-icon="$PROJECT_DIR/support/Success.icns" \
         --include-data-dir="$PROJECT_DIR/support=support" \
         --output-dir="$DIST_DIR" \
@@ -112,6 +114,7 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
         --enable-plugin=no-qt \
         --include-data-dir="$PROJECT_DIR/support=support" \
         --output-dir="$DIST_DIR" \
+        --macos-app-version=1.0 \
         "$PROJECT_DIR/gui_converter.py" && BUILD_SUCCESS=1
 fi
 
