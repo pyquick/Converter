@@ -1,20 +1,32 @@
-# PNG to ICNS Converter
+# PNG to ICNS Converter & ZIP File Processing Tools
 
-This script converts PNG images to ICNS format, which is used for macOS icons.
+This repository contains tools for converting PNG images to ICNS format and processing ZIP files.
 
 ## Requirements
 
 - Python 3.11, 3.12, or 3.13 (recommended)
 - PIL (Pillow) library
+- Tkinter (usually included with Python)
+- Nuitka (for building standalone applications)
 
-Install Pillow with:
+You can install the required dependencies using:
 ```
-pip install Pillow
+pip install -r requirements.txt
 ```
 
-## Usage
+### requirements.txt
+```
+Pillow>=8.0.0
+Nuitka>=1.0.0
+```
 
-### Command Line Version
+Note: Tkinter is usually included with Python installations. For ZIP file GUI functionality, no additional dependencies are required beyond the standard library.
+
+## PNG to ICNS Converter
+
+### Usage
+
+#### Command Line Version
 
 Basic usage:
 ```
@@ -26,7 +38,7 @@ Advanced usage with size options:
 python3 support/convert.py input.png output.icns --min-size 16 --max-size 512
 ```
 
-### GUI Version
+#### GUI Version
 
 For a graphical interface, run:
 ```
@@ -60,6 +72,47 @@ The build script will automatically:
 2. Use Python 3.13 for compilation
 3. Create a standalone .app bundle
 
+## ZIP File Processing Tools
+
+This repository also includes tools for creating, extracting, and managing ZIP files.
+
+### Command Line Version
+
+The command line tool supports several operations:
+
+#### Create a ZIP file
+```
+python3 convertzip.py create output.zip file1.txt folder1/ file2.txt
+```
+
+#### Extract a ZIP file
+```
+python3 convertzip.py extract archive.zip /path/to/extract/
+```
+
+#### Add a file to existing ZIP
+```
+python3 convertzip.py add archive.zip newfile.txt
+```
+
+#### List ZIP file contents
+```
+python3 convertzip.py list archive.zip
+```
+
+### GUI Version
+
+For a graphical interface for ZIP file operations, run:
+```
+python3 zip_gui.py
+```
+
+The GUI provides tabs for:
+- Creating ZIP files from selected files and folders
+- Extracting ZIP files to a destination folder
+- Adding files to existing ZIP files
+- Listing the contents of ZIP files
+
 ## Alternative: Simple Launcher Script
 
 If you cannot build the application with Nuitka, you can use the provided launcher script:
@@ -76,6 +129,7 @@ This script will run the application directly with Python without requiring comp
 
 ## Features
 
+### PNG to ICNS Converter
 - Automatically generates multiple icon sizes from the original image
 - Supports retina (2x) versions for common sizes
 - Crops non-square images to square format
@@ -83,6 +137,14 @@ This script will run the application directly with Python without requiring comp
 - GUI interface for easier use with image preview
 - Progress indication during conversion
 - Automatic opening of the result in Preview app
+
+### ZIP File Processing Tools
+- Create ZIP files from files and folders with progress tracking
+- Extract ZIP files with progress tracking
+- Add files to existing ZIP files
+- List contents of ZIP files
+- Both command-line and GUI interfaces
+- Error handling and user-friendly feedback
 
 ## Example
 
@@ -124,4 +186,14 @@ If you encounter issues with the build process, you can use the simple launcher 
 Or run directly with Python 3.13:
 ```
 python3.13 gui_converter.py
+```
+
+For ZIP file operations, you can use either the command line:
+```
+python3 convertzip.py [command] [options]
+```
+
+Or the GUI:
+```
+python3 zip_gui.py
 ```

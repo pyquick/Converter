@@ -1,373 +1,528 @@
 #!/usr/bin/env python3
 
 """
-PNG to ICNS Converter with GUI
+PNG to ICNS Converter with wxPython GUI
 
 This script provides a graphical interface for converting PNG images to ICNS format.
 """
 
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+import wx
 import os
 import sys
-import tempfile
-import subprocess
 import threading
-from PIL import Image, ImageTk
+from PIL import Image
 
 # Add the current directory to Python path to import convert module
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from support import convert
 
 
-class ICNSConverterGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("PNG to ICNS Converter")
-        self.root.geometry("500x550")
-        self.root.resizable(False, False)
+class ICNSConverterGUI(wx.Frame):
+    def __init__(self, parent, title):
+        super(ICNSConverterGUI, self).__init__(parent, title=title, size=(1000,800))
+        self.SetMinSize((600, 500))
         
         # Variables
-        self.input_path = tk.StringVar()
-        self.output_path = tk.StringVar()
-        self.min_size = tk.IntVar(value=16)
-        self.max_size = tk.IntVar(value=1024)
-        self.image_info = tk.StringVar(value="No image selected")
-        self.converting = False
-        
-        # Track current view mode (main or success)
-        self.view_mode = "main"
+        self.init_variables()
         
         # Create UI
+        self.setup_ui()
+        
+        # Center the window
+        self.Centre()
+        
+        # Bind size event
+        self.Bind(wx.EVT_SIZE, self.on_resize)
+        
+        # Show the window after everything is set up
+        self.Layout()
+        self.Show()
+        
+    def init_variables(self):
+        """初始化或重置所有变量"""
+        self.input_path = ""
+        self.output_path = ""
+        self.min_size = 16
+        self.max_size = 1024
+        self.converting = False
+        self.current_view = "main"
+        
+    def setup_ui(self):
+        """Setup initial UI"""
+        # Create status bar only if it doesn't exist
+        if not hasattr(self, 'status_bar'):
+            self.status_bar = self.CreateStatusBar()
+            self.status_bar.SetStatusText("Ready")
+        
+        # Create main panel
+        self.main_panel = wx.Panel(self)
+        self.main_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.main_panel.SetSizer(self.main_sizer)
+        
+        # Create widgets
         self.create_widgets()
         
+        # Set window sizer
+        window_sizer = wx.BoxSizer(wx.VERTICAL)
+        window_sizer.Add(self.main_panel, 1, wx.EXPAND)
+        self.SetSizer(window_sizer)
+        
     def create_widgets(self):
-        # Main frame
-        self.main_frame = ttk.Frame(self.root, padding="20")
-        self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Success frame (initially hidden)
-        self.success_frame = ttk.Frame(self.root, padding="20")
-        
-        # Create both views
-        self.create_main_view()
-        self.create_success_view()
-        
-        # Show main view by default
-        self.show_main_view()
-        
-    def create_main_view(self):
         """Create the main conversion interface"""
-        main_frame = self.main_frame
+        # Set main panel color
         
-        # Title
-        title_label = ttk.Label(main_frame, text="PNG to ICNS Converter", 
-                               font=("Arial", 16, "bold"))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+        
+        # Title panel
+        title_panel = wx.Panel(self.main_panel)
+       # title_panel.SetBackgroundColour(wx.Colour(51, 51, 51))
+        title_text = wx.StaticText(title_panel, label="PNG to ICNS Converter")
+        title_text.SetForegroundColour(wx.WHITE)
+        title_font = title_text.GetFont()
+        title_font.PointSize += 12
+        title_font = title_font.Bold()
+        title_text.SetFont(title_font)
+        title_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        title_sizer.Add(title_text, 0, wx.ALL | wx.CENTER, 20)
+        title_panel.SetSizer(title_sizer)
+        self.main_sizer.Add(title_panel, 0, wx.EXPAND)
+        
+        # Create notebook for tabs
+        notebook = wx.Notebook(self.main_panel)
+        #notebook.SetBackgroundColour(wx.WHITE)
+        
+        # Main conversion tab
+        conversion_panel = wx.Panel(notebook)
+        #conversion_panel.SetBackgroundColour(wx.WHITE)
+        conversion_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        
+        # Left and Right panels
+        left_panel = wx.Panel(conversion_panel)
+        right_panel = wx.Panel(conversion_panel)
+        left_sizer = wx.BoxSizer(wx.VERTICAL)
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        left_panel.SetSizer(left_sizer)
+        right_panel.SetSizer(right_sizer)
+        
+        # Add panels to conversion sizer
+        conversion_sizer.Add(left_panel, 1, wx.EXPAND | wx.ALL, 10)
+        conversion_sizer.Add(right_panel, 1, wx.EXPAND | wx.ALL, 10)
         
         # Input file selection
-        ttk.Label(main_frame, text="Input PNG File:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        input_frame = ttk.Frame(main_frame)
-        input_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        input_box = wx.StaticBox(left_panel, label="Input File")
+        #input_box.SetForegroundColour(wx.Colour(51, 51, 51))
+        input_box_sizer = wx.StaticBoxSizer(input_box, wx.VERTICAL)
         
-        ttk.Entry(input_frame, textvariable=self.input_path, width=50).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(input_frame, text="Browse...", command=self.browse_input).grid(row=0, column=1)
-        input_frame.columnconfigure(0, weight=1)
+        input_grid = wx.FlexGridSizer(1, 3, 5, 5)
+        input_grid.AddGrowableCol(1)
+        
+        self.input_text = wx.TextCtrl(input_box_sizer.GetStaticBox(), style=wx.TE_READONLY)
+        input_button = wx.Button(input_box_sizer.GetStaticBox(), label="Browse...")
+        input_button.Bind(wx.EVT_BUTTON, self.on_browse_input)
+        
+        input_label = wx.StaticText(input_box_sizer.GetStaticBox(), label="File Path:")
+        #input_label.SetForegroundColour(wx.Colour(51, 51, 51))
+        input_grid.Add(input_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        input_grid.Add(self.input_text, 1, wx.EXPAND)
+        input_grid.Add(input_button, 0, wx.EXPAND)
+        
+        input_box_sizer.Add(input_grid, 1, wx.EXPAND | wx.ALL, 10)
+        left_sizer.Add(input_box_sizer, 0, wx.EXPAND | wx.BOTTOM, 10)
         
         # Output file selection
-        ttk.Label(main_frame, text="Output ICNS File:").grid(row=3, column=0, sticky=tk.W, pady=(10, 5))
-        output_frame = ttk.Frame(main_frame)
-        output_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        output_box = wx.StaticBox(left_panel, label="Output File")
+        #output_box.SetForegroundColour(wx.Colour(51, 51, 51))
+        output_box_sizer = wx.StaticBoxSizer(output_box, wx.VERTICAL)
         
-        ttk.Entry(output_frame, textvariable=self.output_path, width=50).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(output_frame, text="Browse...", command=self.browse_output).grid(row=0, column=1)
-        output_frame.columnconfigure(0, weight=1)
+        output_grid = wx.FlexGridSizer(1, 3, 5, 5)
+        output_grid.AddGrowableCol(1)
+        
+        self.output_text = wx.TextCtrl(output_box_sizer.GetStaticBox(), style=wx.TE_READONLY)
+        output_button = wx.Button(output_box_sizer.GetStaticBox(), label="Browse...")
+        output_button.Bind(wx.EVT_BUTTON, self.on_browse_output)
+        
+        output_label = wx.StaticText(output_box_sizer.GetStaticBox(), label="File Path:")
+        #output_label.SetForegroundColour(wx.Colour(51, 51, 51))
+        output_grid.Add(output_label, 0, wx.ALIGN_CENTER_VERTICAL)
+        output_grid.Add(self.output_text, 1, wx.EXPAND)
+        output_grid.Add(output_button, 0, wx.EXPAND)
+        
+        output_box_sizer.Add(output_grid, 1, wx.EXPAND | wx.ALL, 10)
+        left_sizer.Add(output_box_sizer, 0, wx.EXPAND | wx.BOTTOM, 10)
         
         # Image info
-        ttk.Label(main_frame, text="Image Information:").grid(row=5, column=0, sticky=tk.W, pady=(10, 5))
-        ttk.Label(main_frame, textvariable=self.image_info, relief="sunken", padding=5).grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        info_box = wx.StaticBox(right_panel, label="Image Information")
+        #info_box.SetForegroundColour(wx.Colour(51, 51, 51))
+        info_box_sizer = wx.StaticBoxSizer(info_box, wx.VERTICAL)
+        
+        info_panel = wx.Panel(info_box_sizer.GetStaticBox())
+        #info_panel.SetBackgroundColour(wx.Colour(245, 245, 245))
+        
+        self.info_text = wx.TextCtrl(info_panel, style=wx.TE_READONLY | wx.TE_CENTER)
+        self.info_text.SetValue("No image selected")
+        info_panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        info_panel_sizer.Add(self.info_text, 0, wx.EXPAND | wx.ALL, 10)
+        info_panel.SetSizer(info_panel_sizer)
+        
+        info_box_sizer.Add(info_panel, 1, wx.EXPAND | wx.ALL, 10)
+        right_sizer.Add(info_box_sizer, 0, wx.EXPAND | wx.BOTTOM, 10)
         
         # Size options
-        ttk.Label(main_frame, text="Conversion Options:", font=("Arial", 12, "bold")).grid(row=7, column=0, sticky=tk.W, pady=(20, 10))
+        size_box = wx.StaticBox(right_panel, label="Conversion Options")
+        #size_box.SetForegroundColour(wx.Colour(51, 51, 51))
+        size_box_sizer = wx.StaticBoxSizer(size_box, wx.VERTICAL)
+        
+        options_panel = wx.Panel(size_box_sizer.GetStaticBox())
+        #options_panel.SetBackgroundColour(wx.Colour(245, 245, 245))
+        options_sizer = wx.BoxSizer(wx.VERTICAL)
         
         # Min size
-        min_size_frame = ttk.Frame(main_frame)
-        min_size_frame.grid(row=8, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
-        ttk.Label(min_size_frame, text="Minimum Size:").grid(row=0, column=0, sticky=tk.W)
-        ttk.Spinbox(min_size_frame, from_=16, to=512, increment=16, textvariable=self.min_size, width=10).grid(row=0, column=1, sticky=tk.W, padx=(10, 0))
+        min_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        min_label = wx.StaticText(options_panel, label="Minimum Size:")
+        #min_label.SetForegroundColour(wx.Colour(51, 51, 51))
+        self.min_spin = wx.SpinCtrl(options_panel, value="16", min=16, max=512, initial=16)
+        self.min_spin.Bind(wx.EVT_SPINCTRL, self.on_min_size_change)
+        min_sizer.Add(min_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 10)
+        min_sizer.AddStretchSpacer()
+        min_sizer.Add(self.min_spin, 0, wx.ALL, 10)
+        options_sizer.Add(min_sizer, 0, wx.EXPAND)
         
         # Max size
-        max_size_frame = ttk.Frame(main_frame)
-        max_size_frame.grid(row=9, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
-        ttk.Label(max_size_frame, text="Maximum Size:").grid(row=0, column=0, sticky=tk.W)
-        ttk.Spinbox(max_size_frame, from_=32, to=1024, increment=32, textvariable=self.max_size, width=10).grid(row=0, column=1, sticky=tk.W, padx=(10, 0))
+        max_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        max_label = wx.StaticText(options_panel, label="Maximum Size:")
+        #max_label.SetForegroundColour(wx.Colour(51, 51, 51))
+        self.max_spin = wx.SpinCtrl(options_panel, value="1024", min=32, max=1024, initial=1024)
+        self.max_spin.Bind(wx.EVT_SPINCTRL, self.on_max_size_change)
+        max_sizer.Add(max_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 10)
+        max_sizer.AddStretchSpacer()
+        max_sizer.Add(self.max_spin, 0, wx.ALL, 10)
+        options_sizer.Add(max_sizer, 0, wx.EXPAND)
         
         # Auto-detect button
-        ttk.Button(main_frame, text="Auto-detect Max Size", command=self.auto_detect_max_size).grid(row=10, column=0, pady=5, sticky=tk.W)
+        auto_button = wx.Button(options_panel, label="Auto-detect Max Size")
+        auto_button.Bind(wx.EVT_BUTTON, self.on_auto_detect)
+        options_sizer.Add(auto_button, 0, wx.ALL | wx.CENTER, 15)
         
-        # Progress bar
-        self.progress = ttk.Progressbar(main_frame, mode='determinate')
-        self.progress.grid(row=11, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
+        options_panel.SetSizer(options_sizer)
+        size_box_sizer.Add(options_panel, 1, wx.EXPAND | wx.ALL, 10)
+        right_sizer.Add(size_box_sizer, 0, wx.EXPAND | wx.BOTTOM, 10)
         
-        # Progress label
-        self.progress_label = ttk.Label(main_frame, text="")
-        self.progress_label.grid(row=12, column=0, columnspan=3, pady=(0, 10))
+        # Progress area
+        progress_box = wx.StaticBox(right_panel, label="Progress")
+       # progress_box.SetForegroundColour(wx.Colour(51, 51, 51))
+        progress_box_sizer = wx.StaticBoxSizer(progress_box, wx.VERTICAL)
+        
+        progress_panel = wx.Panel(progress_box_sizer.GetStaticBox())
+       # progress_panel.SetBackgroundColour(wx.Colour(245, 245, 245))
+        progress_panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        self.progress_label = wx.StaticText(progress_panel, label="Ready", style=wx.ALIGN_CENTER)
+        #self.progress_label.SetForegroundColour(wx.Colour(51, 51, 51))
+        self.progress = wx.Gauge(progress_panel, range=100)
+        
+        progress_panel_sizer.Add(self.progress_label, 0, wx.EXPAND | wx.ALL, 10)
+        progress_panel_sizer.Add(self.progress, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        
+        progress_panel.SetSizer(progress_panel_sizer)
+        progress_box_sizer.Add(progress_panel, 1, wx.EXPAND | wx.ALL, 10)
+        right_sizer.Add(progress_box_sizer, 0, wx.EXPAND | wx.BOTTOM, 10)
         
         # Convert button
-        self.convert_button = ttk.Button(main_frame, text="Convert to ICNS", command=self.start_conversion)
-        self.convert_button.grid(row=13, column=0, columnspan=3, pady=10)
+        self.convert_button = wx.Button(right_panel, label="Convert to ICNS", size=(200, 40))
+        font = self.convert_button.GetFont()
+        font = font.Bold()
+        self.convert_button.SetFont(font)
+        self.convert_button.Bind(wx.EVT_BUTTON, self.on_start_conversion)
+        right_sizer.Add(self.convert_button, 0, wx.ALIGN_CENTER | wx.ALL, 20)
+        
+        # Set sizer for conversion panel
+        conversion_panel.SetSizer(conversion_sizer)
+        notebook.AddPage(conversion_panel, "Conversion")
+        
+        # Preview tab
+        preview_panel = wx.Panel(notebook)
+        #preview_panel.SetBackgroundColour(wx.WHITE)
+        preview_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        preview_box = wx.StaticBox(preview_panel, label="Image Preview")
+       # preview_box.SetForegroundColour(wx.Colour(51, 51, 51))
+        preview_box_sizer = wx.StaticBoxSizer(preview_box, wx.VERTICAL)
+        
+        preview_inner_panel = wx.Panel(preview_box_sizer.GetStaticBox())
+       #preview_inner_panel.SetBackgroundColour(wx.Colour(245, 245, 245))
+        preview_inner_sizer = wx.BoxSizer(wx.VERTICAL)
         
         # Preview area
-        ttk.Label(main_frame, text="Preview:", font=("Arial", 12, "bold")).grid(row=14, column=0, sticky=tk.W, pady=(10, 5))
-        self.preview_frame = ttk.Frame(main_frame, relief="sunken", borderwidth=1)
-        self.preview_frame.grid(row=15, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5, padx=0)
-        self.preview_frame.columnconfigure(0, weight=1)
-        self.preview_frame.rowconfigure(0, weight=1)
+        self.preview_bitmap = wx.StaticBitmap(preview_inner_panel, size=(300, 300))
+        preview_inner_sizer.Add(self.preview_bitmap, 1, wx.CENTER | wx.ALL, 20)
+        preview_inner_panel.SetSizer(preview_inner_sizer)
         
-        self.preview_label = ttk.Label(self.preview_frame)
-        self.preview_label.grid(row=0, column=0, padx=10, pady=10)
+        preview_box_sizer.Add(preview_inner_panel, 1, wx.EXPAND | wx.ALL, 10)
+        preview_sizer.Add(preview_box_sizer, 1, wx.EXPAND | wx.ALL, 15)
         
-        # Status bar
-        self.status_var = tk.StringVar(value="Ready")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
-        status_bar.grid(row=16, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        preview_panel.SetSizer(preview_sizer)
+        notebook.AddPage(preview_panel, "Preview")
         
-        # Configure grid weights
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(15, weight=1)
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        self.main_sizer.Add(notebook, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         
-    def create_success_view(self):
-        """Create the success view with success.icns display and return button"""
-        success_frame = self.success_frame
-        
-        # Title
-        title_label = ttk.Label(success_frame, text="Conversion Successful!", 
-                               font=("Arial", 16, "bold"))
-        title_label.grid(row=0, column=0, pady=(0, 20))
-        
-        # Success image
-        self.success_image_label = ttk.Label(success_frame)
-        self.success_image_label.grid(row=1, column=0, pady=20)
-        
-        # Load and display success.icns if available
-        self.load_success_image()
-        
-        # Success message
-        message_label = ttk.Label(success_frame, text="Your ICNS file has been created successfully!", 
-                                 font=("Arial", 12))
-        message_label.grid(row=2, column=0, pady=(0, 30))
-        
-        # Return button
-        return_button = ttk.Button(success_frame, text="Return to Converter", 
-                                  command=self.show_main_view)
-        return_button.grid(row=3, column=0, pady=10)
-        
-        # Configure grid weights
-        success_frame.columnconfigure(0, weight=1)
-        success_frame.rowconfigure(1, weight=1)
-        
-    def load_success_image(self):
-        """Load and display the success.icns image"""
-        success_icns_path = os.path.join(os.path.dirname(__file__), "support", "Success.icns")
-        if os.path.exists(success_icns_path):
-            try:
-                # Load and resize image for display
-                img = Image.open(success_icns_path)
-                img.thumbnail((128, 128))  # Resize for display
-                photo = ImageTk.PhotoImage(img)
-                self.success_image_label.configure(image=photo)
-                self.success_image_label.image = photo  # Keep a reference
-            except Exception as e:
-                self.success_image_label.configure(text="Success image could not be loaded")
-        else:
-            self.success_image_label.configure(text="Success image not found")
-        
-    def show_main_view(self):
-        """Show the main conversion interface"""
-        self.success_frame.grid_remove()
-        self.main_frame.grid()
-        self.view_mode = "main"
-        
-    def show_success_view(self):
-        """Show the success view"""
-        self.main_frame.grid_remove()
-        self.success_frame.grid()
-        self.view_mode = "success"
-        
-    def browse_input(self):
-        filename = filedialog.askopenfilename(
-            title="Select PNG file",
-            filetypes=[("PNG files", "*.png"), ("All files", "*.*")]
-        )
-        if filename:
-            self.input_path.set(filename)
+    def on_browse_input(self, event):
+        with wx.FileDialog(self, "Select PNG file", wildcard="PNG files (*.png)|*.png|All files (*.*)|*.*",
+                          style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+                
+            self.input_path = fileDialog.GetPath()
+            self.input_text.SetValue(self.input_path)
             self.auto_set_output()
             self.show_preview()
             self.update_image_info()
             
-    def browse_output(self):
-        filename = filedialog.asksaveasfilename(
-            title="Save ICNS file",
-            defaultextension=".icns",
-            filetypes=[("ICNS files", "*.icns"), ("All files", "*.*")]
-        )
-        if filename:
-            self.output_path.set(filename)
+    def on_browse_output(self, event):
+        with wx.FileDialog(self, "Save ICNS file", wildcard="ICNS files (*.icns)|*.icns|All files (*.*)|*.*",
+                          style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+                
+            self.output_path = fileDialog.GetPath()
+            if not self.output_path.endswith('.icns'):
+                self.output_path += '.icns'
+            self.output_text.SetValue(self.output_path)
             
     def auto_set_output(self):
-        input_file = self.input_path.get()
-        if input_file and input_file.lower().endswith('.png'):
-            output_file = os.path.splitext(input_file)[0] + '.icns'
-            self.output_path.set(output_file)
+        if self.input_path and self.input_path.lower().endswith('.png'):
+            output_file = os.path.splitext(self.input_path)[0] + '.icns'
+            self.output_path = output_file
+            self.output_text.SetValue(output_file)
             
     def update_image_info(self):
-        input_file = self.input_path.get()
-        if input_file and os.path.exists(input_file):
+        if self.input_path and os.path.exists(self.input_path):
             try:
-                width, height = convert.get_image_info(input_file)
-                self.image_info.set(f"Dimensions: {width}x{height}px")
-                self.max_size.set(min(width, height))  # Auto-set max size
+                width, height = convert.get_image_info(self.input_path)
+                self.info_text.SetValue(f"Dimensions: {width}x{height}px")
+                self.max_size = min(width, height)
+                self.max_spin.SetValue(self.max_size)
             except Exception as e:
-                self.image_info.set(f"Error reading image: {str(e)}")
+                self.info_text.SetValue(f"Error reading image: {str(e)}")
         else:
-            self.image_info.set("No image selected")
+            self.info_text.SetValue("No image selected")
             
-    def auto_detect_max_size(self):
-        input_file = self.input_path.get()
-        if input_file and os.path.exists(input_file):
+    def on_auto_detect(self, event):
+        if self.input_path and os.path.exists(self.input_path):
             try:
-                width, height = convert.get_image_info(input_file)
-                self.max_size.set(min(width, height))
-                self.status_var.set(f"Max size auto-detected: {min(width, height)}")
+                width, height = convert.get_image_info(self.input_path)
+                self.max_size = min(width, height)
+                self.max_spin.SetValue(self.max_size)
+                self.status_bar.SetStatusText(f"Max size auto-detected: {self.max_size}")
             except Exception as e:
-                messagebox.showerror("Error", f"Could not detect image size: {str(e)}")
+                wx.MessageBox(f"Could not detect image size: {str(e)}", "Error", wx.OK | wx.ICON_ERROR)
         else:
-            messagebox.showwarning("Warning", "Please select an input file first.")
+            wx.MessageBox("Please select an input file first.", "Warning", wx.OK | wx.ICON_WARNING)
             
     def show_preview(self):
-        input_file = self.input_path.get()
-        if input_file and os.path.exists(input_file):
+        if self.input_path and os.path.exists(self.input_path):
             try:
                 # Load and resize image for preview
-                img = Image.open(input_file)
-                img.thumbnail((100, 100))  # Resize for preview
-                photo = ImageTk.PhotoImage(img)
-                self.preview_label.configure(image=photo)
-                self.preview_label.image = photo  # Keep a reference
-                self.status_var.set(f"Loaded: {os.path.basename(input_file)} ({img.size[0]}x{img.size[1]})")
+                img = Image.open(self.input_path)
+                img.thumbnail((300, 300))  # Resize for preview
+                
+                # Convert PIL image to wxPython image
+                wx_image = wx.Image(img.size[0], img.size[1])
+                wx_image.SetData(img.convert("RGB").tobytes())
+                bitmap = wx_image.ConvertToBitmap()
+                
+                self.preview_bitmap.SetBitmap(bitmap)
+                self.status_bar.SetStatusText(f"Loaded: {os.path.basename(self.input_path)} ({img.size[0]}x{img.size[1]})")
             except Exception as e:
-                self.preview_label.configure(image='', text=f"Preview error: {str(e)}")
-                self.status_var.set("Preview error")
+                self.preview_bitmap.SetBitmap(wx.NullBitmap)
+                self.status_bar.SetStatusText("Preview error")
         else:
-            self.preview_label.configure(image='', text="No preview available")
-            self.status_var.set("Ready")
+            self.preview_bitmap.SetBitmap(wx.NullBitmap)
+            self.status_bar.SetStatusText("Ready")
             
-    def start_conversion(self):
+    def on_min_size_change(self, event):
+        self.min_size = self.min_spin.GetValue()
+        
+    def on_max_size_change(self, event):
+        self.max_size = self.max_spin.GetValue()
+            
+    def on_start_conversion(self, event):
         """Start conversion in a separate thread to avoid blocking the UI"""
         if self.converting:
             return
             
-        input_file = self.input_path.get()
-        output_file = self.output_path.get()
-        
-        if not input_file:
-            messagebox.showerror("Error", "Please select an input PNG file.")
+        if not self.input_path:
+            wx.MessageBox("Please select an input PNG file.", "Error", wx.OK | wx.ICON_ERROR)
             return
             
-        if not output_file:
-            messagebox.showerror("Error", "Please specify an output ICNS file.")
+        if not self.output_path:
+            wx.MessageBox("Please specify an output ICNS file.", "Error", wx.OK | wx.ICON_ERROR)
             return
             
-        if not os.path.exists(input_file):
-            messagebox.showerror("Error", "Input file does not exist.")
+        if not os.path.exists(self.input_path):
+            wx.MessageBox("Input file does not exist.", "Error", wx.OK | wx.ICON_ERROR)
             return
             
-        if not input_file.lower().endswith('.png'):
-            messagebox.showerror("Error", "Input file must be a PNG image.")
+        if not self.input_path.lower().endswith('.png'):
+            wx.MessageBox("Input file must be a PNG image.", "Error", wx.OK | wx.ICON_ERROR)
             return
             
         # Start conversion in a separate thread
         self.converting = True
-        self.convert_button.config(state="disabled")
+        self.convert_button.Enable(False)
+        self.progress.SetValue(0)
+        self.progress_label.SetLabel("Starting conversion...")
         conversion_thread = threading.Thread(target=self.convert)
         conversion_thread.daemon = True
         conversion_thread.start()
             
     def convert(self):
-        input_file = self.input_path.get()
-        output_file = self.output_path.get()
-        
-        # Reset progress
-        self.progress['value'] = 0
-        self.root.after(0, self._update_progress_text, "Starting conversion...")
-        self.root.after(0, self._update_status, "Converting...")
-        
+        """执行转换过程"""
         try:
-            # Perform conversion with progress callback
+            # 执行转换
             convert.create_icns(
-                input_file, 
-                output_file, 
-                self.min_size.get(), 
-                self.max_size.get(),
+                self.input_path, 
+                self.output_path, 
+                self.min_size, 
+                self.max_size,
                 progress_callback=self.update_progress
             )
             
-            # Show success view
-            self.root.after(0, self._show_success)
+            # 在主线程中显示成功界面
+            wx.CallAfter(self.show_success_view)
+            
         except Exception as e:
-            self.root.after(0, self._update_status, "Conversion failed")
-            self.root.after(0, lambda: messagebox.showerror("Error", f"Conversion failed: {str(e)}"))
-            self.root.after(0, self._enable_convert_button)
-        finally:
-            self.converting = False
+            wx.CallAfter(self.on_conversion_error, str(e))
             
-    def _show_success(self):
-        """Show success view after conversion"""
-        self.show_success_view()
-        self._enable_convert_button()
-        self._clear_form()
+    def show_success_view(self):
+        """显示转换成功界面"""
+        # 保存当前窗口位置和大小
+        current_size = self.GetSize()
+        current_pos = self.GetPosition()
         
-    def _clear_form(self):
-        """Clear all form fields"""
-        self.input_path.set("")
-        self.output_path.set("")
-        self.image_info.set("No image selected")
-        self.min_size.set(16)
-        self.max_size.set(1024)
-        self.preview_label.configure(image='', text="No preview available")
-        self.progress['value'] = 0
-        self.progress_label.config(text="")
-        self.status_var.set("Ready")
+        # 清除所有控件
+        for child in self.GetChildren():
+            if child != self.status_bar:
+                child.Destroy()
+        
+        # 创建内容面板
+        content_panel = wx.Panel(self)
+        #content_panel.SetBackgroundColour(wx.WHITE)
+        content_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # 创建子面板用于内容居中
+        center_panel = wx.Panel(content_panel)
+        #center_panel.SetBackgroundColour(wx.WHITE)
+        center_sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        center_sizer.AddStretchSpacer()
+        
+        # 添加标题
+        title = wx.StaticText(center_panel, label="Conversion Successful!")
+        font = title.GetFont()
+        font.PointSize += 4
+        font.MakeBold()
+        title.SetFont(font)
+        center_sizer.Add(title, 0, wx.CENTER | wx.BOTTOM, 20)
+        
+        # 添加成功图标（使用 ✓ 符号）
+        checkmark = wx.StaticText(center_panel, label="✓")
+        checkmark_font = checkmark.GetFont()
+        checkmark_font.PointSize += 20
+        checkmark_font.MakeBold()
+        checkmark.SetFont(checkmark_font)
+        checkmark.SetForegroundColour(wx.Colour(76, 175, 80))  # 设置为绿色
+        center_sizer.Add(checkmark, 0, wx.CENTER | wx.ALL, 20)
+        
+        # 添加成功信息
+        msg = wx.StaticText(center_panel, label="Your ICNS file has been created successfully!")
+        center_sizer.Add(msg, 0, wx.CENTER | wx.BOTTOM, 20)
+        
+        # 添加返回按钮
+        btn = wx.Button(center_panel, label="Return to Converter")
+        btn.Bind(wx.EVT_BUTTON, self.show_main_view)
+        center_sizer.Add(btn, 0, wx.CENTER | wx.TOP, 20)
+        
+        center_sizer.AddStretchSpacer()
+        
+        center_panel.SetSizer(center_sizer)
+        
+        # 添加水平方向的空白区域
+        content_sizer.AddStretchSpacer()
+        content_sizer.Add(center_panel, 0, wx.CENTER | wx.EXPAND)
+        content_sizer.AddStretchSpacer()
+        
+        content_panel.SetSizer(content_sizer)
+        
+        # 创建主窗口sizer
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        main_sizer.Add(content_panel, 1, wx.EXPAND)
+        self.SetSizer(main_sizer)
+        
+        # 恢复窗口尺寸和位置
+        self.SetSize(current_size)
+        self.SetPosition(current_pos)
+        
+        # 更新布局
+        self.Layout()
+        self.Refresh()
+        
+        # 重置状态
+        self.converting = False
+        
+    def on_conversion_error(self, error_message):
+        """转换失败后的处理"""
+        self.converting = False
+        self.convert_button.Enable(True)
+        wx.MessageBox(error_message, "Conversion Failed", wx.OK | wx.ICON_ERROR)
             
-    def _update_progress_text(self, text):
-        """Helper method to update progress label text"""
-        self.progress_label.config(text=text)
+    def show_main_view(self, event=None):
+        """返回主界面，重新初始化所有内容"""
+        # 保存当前窗口位置和大小
+        current_size = self.GetSize()
+        current_pos = self.GetPosition()
         
-    def _update_status(self, text):
-        """Helper method to update status bar text"""
-        self.status_var.set(text)
+        # 重置所有变量
+        self.init_variables()
         
-    def _update_progress_value(self, value):
-        """Helper method to update progress bar value"""
-        self.progress['value'] = value
+        # 清除所有控件
+        for child in self.GetChildren():
+            if child != self.status_bar:
+                child.Destroy()
         
-    def _enable_convert_button(self):
-        """Helper method to re-enable the convert button"""
-        self.convert_button.config(state="normal")
+        # 重置背景颜色
+        #self.SetBackgroundColour(wx.Colour(245, 245, 245))
+        
+        # 重新创建UI
+        self.setup_ui()
+        
+        # 恢复窗口尺寸和位置
+        self.SetSize(current_size)
+        self.SetPosition(current_pos)
+        
+        # 刷新显示
+        self.Layout()
+        self.Refresh()
+        
+    def on_resize(self, event):
+        """处理窗口大小改变事件"""
+        self.Layout()
+        event.Skip()
             
     def update_progress(self, message, percentage):
         """Update progress bar from the conversion thread"""
-        self.root.after(0, self._update_progress_text, message)
-        self.root.after(0, self._update_progress_value, percentage)
-        self.root.update_idletasks()
+        wx.CallAfter(self.progress_label.SetLabel, message)
+        wx.CallAfter(self.progress.SetValue, percentage)
+        wx.CallAfter(self.Update)
+
+
+class ICNSConverterApp(wx.App):
+    def OnInit(self):
+        frame = ICNSConverterGUI(None, "PNG to ICNS Converter")
+        return True
 
 
 def main():
-    root = tk.Tk()
-    app = ICNSConverterGUI(root)
-    root.mainloop()
+    app = ICNSConverterApp()
+    app.MainLoop()
 
 
 if __name__ == "__main__":

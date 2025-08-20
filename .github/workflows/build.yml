@@ -21,23 +21,23 @@ jobs:
                 python-version: '3.13'
             - name: Install Dependencies
               run: |
-                chmod +x build.command
+                chmod +x build_nk.command
                 /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -m pip install -r requirements.txt
                 
             - name: Build Apps
               run: |
-                ./build.command
+                ./build_nk.command
+                /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 patch.py
             - name: Create (Pre-)Release on Push
               if: github.event_name == 'push'
               uses: softprops/action-gh-release@v2
               with:
-                tag_name: 0.90
-                name: 1.0Pre
+                tag_name: 0.91
+                name: 1.0Pre2
                 body: ${{ github.event.head_commit.message }}
                 prerelease: true
                 files: |
-                    ./dist/AutoPkg-Assets.pkg
-                    ./dist/OCLP-R.pkg
-                    ./dist/OCLP-R-Uninstaller.pkg
+                    ./dist/gui_converter.app
+                    
 
 

@@ -19,6 +19,16 @@ fi
 if [ ! -d "$PROJECT_DIR/support" ]; then
     echo "Error: support directory not found in project directory"
     exit 1
+    
+fi
+
+# Install required dependencies
+echo "Installing required dependencies..."
+if [ -f "$PROJECT_DIR/requirements.txt" ]; then
+    python3.13 -m pip install -r "$PROJECT_DIR/requirements.txt"
+else
+    echo "Warning: requirements.txt not found. Installing default dependencies..."
+    python3.13 -m pip install Pillow nuitka wxpython
 fi
 
 # Create build directory
@@ -52,7 +62,7 @@ fi
 
 # Install required dependencies if not already installed
 echo "Checking and installing dependencies..."
-python3.13 -m pip install Pillow nuitka
+python3.13 -m pip install Pillow nuitka wxpython
 
 # Try to determine Python version
 PYTHON_VERSION=$(python3.13 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
@@ -69,10 +79,10 @@ BUILD_SUCCESS=0
 echo "Trying recommended build approach..."
 python3.13 -m nuitka \
     --standalone \
+    --enable-plugin=no-qt \
     --macos-create-app-bundle \
     --macos-app-icon="$PROJECT_DIR/support/Success.icns" \
     --include-data-dir="$PROJECT_DIR/support=support" \
-    --enable-plugin=tk-inter \
     --output-dir="$DIST_DIR" \
     --remove-output \
     "$PROJECT_DIR/gui_converter.py" && BUILD_SUCCESS=1
@@ -85,9 +95,9 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     python3.13 -m nuitka \
         --standalone \
         --macos-create-app-bundle \
+        --enable-plugin=no-qt \
         --macos-app-icon="$PROJECT_DIR/support/Success.icns" \
         --include-data-dir="$PROJECT_DIR/support=support" \
-        --enable-plugin=tk-inter \
         --output-dir="$DIST_DIR" \
         "$PROJECT_DIR/gui_converter.py" && BUILD_SUCCESS=1
 fi
@@ -99,8 +109,8 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     python3.13 -m nuitka \
         --standalone \
         --macos-create-app-bundle \
+        --enable-plugin=no-qt \
         --include-data-dir="$PROJECT_DIR/support=support" \
-        --enable-plugin=tk-inter \
         --output-dir="$DIST_DIR" \
         "$PROJECT_DIR/gui_converter.py" && BUILD_SUCCESS=1
 fi

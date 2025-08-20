@@ -9,10 +9,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Change to the script directory
 cd "$SCRIPT_DIR"
 
+# Check if requirements.txt exists and install dependencies if needed
+if [ -f "requirements.txt" ]; then
+    echo "Checking dependencies..."
+    python3 -c "import PIL" 2>/dev/null || {
+        echo "Installing required dependencies..."
+        pip3 install -r requirements.txt
+    }
+fi
+
 # Run the Python application
 echo "Starting PNG to ICNS Converter..."
-echo "If you get a 'module not found' error, please install Pillow:"
-echo "pip3 install Pillow"
 echo ""
 
 python3 gui_converter.py
