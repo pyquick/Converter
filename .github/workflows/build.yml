@@ -28,7 +28,7 @@ jobs:
               run: |
                 ./build_nk.command
                 /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 patch.py
-                /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 
+                /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 buildzip.py 
 
             - name: Create (Pre-)Release on Push
               if: github.event_name == 'push'
