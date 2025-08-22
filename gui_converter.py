@@ -46,6 +46,7 @@ class ICNSConverterGUI(wx.Frame):
         self.max_size = 1024
         self.converting = False
         self.current_view = "main"
+        self.output_format = "icns" # Default output format
         
     def setup_ui(self):
         """Setup initial UI"""
@@ -175,6 +176,17 @@ class ICNSConverterGUI(wx.Frame):
         #options_panel.SetBackgroundColour(wx.Colour(245, 245, 245))
         options_sizer = wx.BoxSizer(wx.VERTICAL)
         
+        # Output Format Selection
+        format_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        format_label = wx.StaticText(options_panel, label="Output Format:")
+        self.format_combo = wx.ComboBox(options_panel, choices=convert.SUPPORTED_FORMATS, 
+                                        style=wx.CB_READONLY, value="icns")
+        self.format_combo.Bind(wx.EVT_COMBOBOX, self.on_format_change)
+        format_sizer.Add(format_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 10)
+        format_sizer.AddStretchSpacer()
+        format_sizer.Add(self.format_combo, 0, wx.ALL, 10)
+        options_sizer.Add(format_sizer, 0, wx.EXPAND)
+        
         # Min size
         min_sizer = wx.BoxSizer(wx.HORIZONTAL)
         min_label = wx.StaticText(options_panel, label="Minimum Size:")
@@ -198,9 +210,9 @@ class ICNSConverterGUI(wx.Frame):
         options_sizer.Add(max_sizer, 0, wx.EXPAND)
         
         # Auto-detect button
-        auto_button = wx.Button(options_panel, label="Auto-detect Max Size")
-        auto_button.Bind(wx.EVT_BUTTON, self.on_auto_detect)
-        options_sizer.Add(auto_button, 0, wx.ALL | wx.CENTER, 15)
+        self.auto_button = wx.Button(options_panel, label="Auto-detect Max Size")
+        self.auto_button.Bind(wx.EVT_BUTTON, self.on_auto_detect)
+        options_sizer.Add(self.auto_button, 0, wx.ALL | wx.CENTER, 15)
         
         options_panel.SetSizer(options_sizer)
         size_box_sizer.Add(options_panel, 1, wx.EXPAND | wx.ALL, 10)
@@ -277,19 +289,41 @@ class ICNSConverterGUI(wx.Frame):
             self.update_image_info()
             
     def on_browse_output(self, event):
-        with wx.FileDialog(self, "Save ICNS file", wildcard="ICNS files (*.icns)|*.icns|All files (*.*)|*.*",
+        wildcard_map = {
+            "icns": "ICNS files (*.icns)|*.icns",
+            "png": "PNG files (*.png)|*.png",
+            "jpg": "JPEG files (*.jpg)|*.jpg",
+            "webp": "WebP files (*.webp)|*.webp",
+        }
+        default_wildcard = wildcard_map.get(self.output_format, "All files (*.*)|*.*")
+        
+        with wx.FileDialog(self, f"Save {self.output_format.upper()} file", wildcard=default_wildcard + "|All files (*.*)|*.*",
                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
                 
             self.output_path = fileDialog.GetPath()
-            if not self.output_path.endswith('.icns'):
-                self.output_path += '.icns'
+            # Ensure the output path has the correct extension based on selected format
+            expected_extension = '.' + self.output_format
+            if not self.output_path.lower().endswith(expected_extension):
+                self.output_path += expected_extension
             self.output_text.SetValue(self.output_path)
             
+    def on_format_change(self, event):
+        self.output_format = self.format_combo.GetValue().lower()
+        # Update output path with new extension if an input file is selected
+        self.auto_set_output()
+        self.convert_button.SetLabel(f"Convert to {self.output_format.upper()}")
+        # Disable size options if not converting to ICNS
+        enable_size_options = (self.output_format == "icns")
+        self.min_spin.Enable(enable_size_options)
+        self.max_spin.Enable(enable_size_options)
+        self.auto_button.Enable(enable_size_options) # Corrected: Reference auto_button
+        
     def auto_set_output(self):
-        if self.input_path and self.input_path.lower().endswith('.png'):
-            output_file = os.path.splitext(self.input_path)[0] + '.icns'
+        if self.input_path:
+            base_name = os.path.splitext(os.path.basename(self.input_path))[0]
+            output_file = f"{os.path.dirname(self.input_path)}{os.sep}{base_name}.{self.output_format}"
             self.output_path = output_file
             self.output_text.SetValue(output_file)
             
@@ -354,16 +388,15 @@ class ICNSConverterGUI(wx.Frame):
             return
             
         if not self.output_path:
-            wx.MessageBox("Please specify an output ICNS file.", "Error", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(f"Please specify an output {self.output_format.upper()} file.", "Error", wx.OK | wx.ICON_ERROR)
             return
             
         if not os.path.exists(self.input_path):
             wx.MessageBox("Input file does not exist.", "Error", wx.OK | wx.ICON_ERROR)
             return
             
-        if not self.input_path.lower().endswith('.png'):
-            wx.MessageBox("Input file must be a PNG image.", "Error", wx.OK | wx.ICON_ERROR)
-            return
+        # The input can be any image format now that Pillow handles it
+        # No longer need to check for .png extension here
             
         # Start conversion in a separate thread
         self.converting = True
@@ -378,13 +411,22 @@ class ICNSConverterGUI(wx.Frame):
         """执行转换过程"""
         try:
             # 执行转换
-            convert.create_icns(
-                self.input_path, 
-                self.output_path, 
-                self.min_size, 
-                self.max_size,
-                progress_callback=self.update_progress
-            )
+            if self.output_format == "icns":
+                convert.convert_image(
+                    self.input_path, 
+                    self.output_path, 
+                    self.output_format,
+                    self.min_size, 
+                    self.max_size,
+                    progress_callback=self.update_progress
+                )
+            else:
+                convert.convert_image(
+                    self.input_path,
+                    self.output_path,
+                    self.output_format,
+                    progress_callback=self.update_progress
+                )
             
             # 在主线程中显示成功界面
             wx.CallAfter(self.show_success_view)
@@ -433,7 +475,7 @@ class ICNSConverterGUI(wx.Frame):
         center_sizer.Add(checkmark, 0, wx.CENTER | wx.ALL, 20)
         
         # 添加成功信息
-        msg = wx.StaticText(center_panel, label="Your ICNS file has been created successfully!")
+        msg = wx.StaticText(center_panel, label=f"Your {self.output_format.upper()} file has been created successfully!")
         center_sizer.Add(msg, 0, wx.CENTER | wx.BOTTOM, 20)
         
         # 添加返回按钮
@@ -467,6 +509,7 @@ class ICNSConverterGUI(wx.Frame):
         
         # 重置状态
         self.converting = False
+        self.current_view = "success" # Set current view to success
         
     def on_conversion_error(self, error_message):
         """转换失败后的处理"""
@@ -480,28 +523,45 @@ class ICNSConverterGUI(wx.Frame):
         current_size = self.GetSize()
         current_pos = self.GetPosition()
         
-        # 重置所有变量
+        # Reset all variables
         self.init_variables()
         
-        # 清除所有控件
+        # Clear all controls (except status bar) to ensure a clean slate
         for child in self.GetChildren():
-            if child != self.status_bar:
+            if child != self.status_bar and child.GetName() != "FrameStatusBar": # Exclude status bar
                 child.Destroy()
         
-        # 重置背景颜色
-        #self.SetBackgroundColour(wx.Colour(245, 245, 245))
-        
-        # 重新创建UI
+        # Re-setup UI (this will create new widgets and set self.main_panel)
         self.setup_ui()
+        self.current_view = "main" # Ensure we are in the main view
         
-        # 恢复窗口尺寸和位置
+        # Update widgets to reflect initial state (these are new widgets from setup_ui)
+        self.input_text.SetValue("")
+        self.output_text.SetValue("")
+        self.info_text.SetValue("No image selected")
+        self.preview_bitmap.SetBitmap(wx.NullBitmap)
+        self.min_spin.SetValue(16)
+        self.max_spin.SetValue(1024)
+        self.format_combo.SetValue("icns")
+        self.convert_button.SetLabel("Convert to ICNS")
+        self.min_spin.Enable(True)
+        self.max_spin.Enable(True)
+        self.auto_button.Enable(True)
+        self.progress.SetValue(0)
+        self.progress_label.SetLabel("Ready")
+        self.convert_button.Enable(True)
+        
+        # Re-layout the main panel
+        self.main_panel.Layout()
+        
+        # Restore window size and position
         self.SetSize(current_size)
         self.SetPosition(current_pos)
         
-        # 刷新显示
+        # Refresh display
         self.Layout()
         self.Refresh()
-        
+
     def on_resize(self, event):
         """处理窗口大小改变事件"""
         self.Layout()
@@ -516,7 +576,7 @@ class ICNSConverterGUI(wx.Frame):
 
 class ICNSConverterApp(wx.App):
     def OnInit(self):
-        frame = ICNSConverterGUI(None, "PNG to ICNS Converter")
+        frame = ICNSConverterGUI(None, "Image Converter")
         return True
 
 

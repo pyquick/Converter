@@ -18,29 +18,90 @@ import shutil
 import subprocess
 from PIL import Image
 
-def get_image_info(png_path):
+SUPPORTED_FORMATS = ["icns", "png", "jpg", "webp"]
+
+def get_image_info(image_path):
     """
-    Get information about the PNG image.
+    Get information about the image.
     
     Args:
-        png_path (str): Path to the input PNG file
+        image_path (str): Path to the input image file
         
     Returns:
         tuple: (width, height) of the image
     """
-    img = Image.open(png_path)
+    img = Image.open(image_path)
     return img.width, img.height
 
-def create_icns(png_path, icns_path, min_size=16, max_size=None, progress_callback=None):
+def convert_image(input_path, output_path, output_format, min_size=16, max_size=None, progress_callback=None):
     """
-    Convert a PNG image to ICNS format using iconset method.
+    Convert an image to the specified format.
     
     Args:
-        png_path (str): Path to the input PNG file
-        icns_path (str): Path for the output ICNS file
-        min_size (int): Minimum size for the icon (default: 16)
-        max_size (int): Maximum size for the icon (default: original image size)
-        progress_callback (function): Callback function to report progress
+        input_path (str): Path to the input image file.
+        output_path (str): Path for the output file.
+        output_format (str): Desired output format (e.g., "icns", "png", "jpg", "webp").
+        min_size (int): Minimum size for the icon (default: 16), primarily for ICNS.
+        max_size (int): Maximum size for the icon (default: original image size), primarily for ICNS.
+        progress_callback (function): Callback function to report progress.
+    """
+    if output_format not in SUPPORTED_FORMATS:
+        raise ValueError(f"Unsupported output format: {output_format}. Supported formats are: {', '.join(SUPPORTED_FORMATS)}")
+
+    if output_format == "icns":
+        # Existing ICNS conversion logic
+        _create_icns_internal(input_path, output_path, min_size, max_size, progress_callback)
+    else:
+        # Generic image conversion using Pillow
+        try:
+            img = Image.open(input_path)
+            
+            # For JPG, ensure the image is in RGB mode as JPG does not support alpha channel
+            if output_format.lower() == "jpg":
+                if progress_callback:
+                    progress_callback(f"Processing image for JPG conversion...", 30)
+                
+                # Handle various image modes that need conversion to RGB
+                if img.mode in ('RGBA', 'LA', 'P', 'CMYK', 'YCbCr', 'LAB', 'HSV', 'I', 'F'):
+                    if progress_callback:
+                        progress_callback(f"Converting from {img.mode} mode to RGB...", 40)
+                    
+                    # For modes with transparency, use white background
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        # Create white background
+                        background = Image.new('RGB', img.size, (255, 255, 255))
+                        if img.mode == 'P':
+                            img = img.convert('RGBA')
+                        background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                        img = background
+                    else:
+                        # For other modes, convert directly to RGB
+                        img = img.convert('RGB')
+                
+                if progress_callback:
+                    progress_callback(f"Image converted to RGB mode", 50)
+            
+            # Save with appropriate options for each format
+            if output_format.lower() == "jpg":
+                # Save JPG with high quality and optimized settings
+                img.save(output_path, format='JPEG', quality=95, optimize=True, progressive=True)
+            else:
+                img.save(output_path, format=output_format.upper())
+                
+            if progress_callback:
+                progress_callback(f"Successfully converted {input_path} to {output_path} ({output_format})", 100)
+            else:
+                print(f"Successfully converted {input_path} to {output_path} ({output_format})")
+        except Exception as e:
+            error_msg = f"Error converting image to {output_format.upper()}: {e}"
+            if progress_callback:
+                progress_callback(error_msg, 0)
+            raise Exception(error_msg) from e
+
+def _create_icns_internal(png_path, icns_path, min_size=16, max_size=None, progress_callback=None):
+    """
+    Internal function to convert a PNG image to ICNS format using iconset method.
+    This function contains the original logic of create_icns.
     """
     # Open the source image
     img = Image.open(png_path)
@@ -93,7 +154,7 @@ def create_icns(png_path, icns_path, min_size=16, max_size=None, progress_callba
                     print(f"Generated size: {size}x{size}")
                 
                 # Create a copy of the image and resize it
-                resized_img = img.copy().resize((size, size), Image.LANCZOS)
+                resized_img = img.copy().resize((size, size), Image.Resampling.LANCZOS)
                 
                 # Save as PNG in iconset directory
                 filename = f"icon_{size}x{size}.png"
@@ -110,7 +171,7 @@ def create_icns(png_path, icns_path, min_size=16, max_size=None, progress_callba
                     else:
                         print(f"Generated retina size: {retina_size}x{retina_size}")
                     
-                    retina_img = img.copy().resize((retina_size, retina_size), Image.LANCZOS)
+                    retina_img = img.copy().resize((retina_size, retina_size), Image.Resampling.LANCZOS)
                     retina_filename = f"icon_{size}x{size}@2x.png"
                     retina_img.save(os.path.join(iconset_dir, retina_filename), "PNG")
                     generated_sizes.append(retina_size)
@@ -122,7 +183,7 @@ def create_icns(png_path, icns_path, min_size=16, max_size=None, progress_callba
             else:
                 print(f"Generated max size: {max_size}x{max_size}")
             
-            resized_img = img.copy().resize((max_size, max_size), Image.LANCZOS)
+            resized_img = img.copy().resize((max_size, max_size), Image.Resampling.LANCZOS)
             filename = f"icon_{max_size}x{max_size}.png"
             resized_img.save(os.path.join(iconset_dir, filename), "PNG")
             generated_sizes.append(max_size)
@@ -141,18 +202,29 @@ def create_icns(png_path, icns_path, min_size=16, max_size=None, progress_callba
                 print(f"Successfully converted {png_path} to {icns_path}")
                 print(f"Generated sizes: {sorted(set(generated_sizes))}")
         except subprocess.CalledProcessError as e:
+            error_detail = e.stderr.decode() if e.stderr else str(e)
+            error_msg = f"Error creating ICNS with iconutil: {error_detail}"
             if progress_callback:
-                progress_callback(f"Error creating ICNS with iconutil: {e}", 95)
-                progress_callback("Falling back to Pillow method...", 95)
+                progress_callback(error_msg, 90)
+                progress_callback("Falling back to Pillow method...", 90)
             else:
-                print(f"Error creating ICNS with iconutil: {e}")
+                print(error_msg)
                 print("Falling back to Pillow method...")
             # Fallback to Pillow method if iconutil fails
-            fallback_method(iconset_dir, icns_path, progress_callback)
+            _fallback_method_internal(iconset_dir, icns_path, progress_callback)
+        except Exception as e:
+            error_msg = f"Unexpected error during iconutil conversion: {e}"
+            if progress_callback:
+                progress_callback(error_msg, 90)
+                progress_callback("Falling back to Pillow method...", 90)
+            else:
+                print(error_msg)
+                print("Falling back to Pillow method...")
+            _fallback_method_internal(iconset_dir, icns_path, progress_callback)
 
-def fallback_method(iconset_dir, icns_path, progress_callback=None):
+def _fallback_method_internal(iconset_dir, icns_path, progress_callback=None):
     """
-    Fallback method using Pillow if iconutil is not available
+    Internal fallback method using Pillow if iconutil is not available
     """
     icon_files = os.listdir(iconset_dir)
     if not icon_files:
@@ -193,34 +265,32 @@ def fallback_method(iconset_dir, icns_path, progress_callback=None):
         print(success_msg)
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert PNG to ICNS format")
-    parser.add_argument("input", help="Input PNG file path")
-    parser.add_argument("output", help="Output ICNS file path")
-    parser.add_argument("--min-size", type=int, default=16, help="Minimum icon size (default: 16)")
-    parser.add_argument("--max-size", type=int, help="Maximum icon size (default: auto-detected from image)")
+    parser = argparse.ArgumentParser(description="Convert images to various formats (ICNS, PNG, JPG, WebP)")
+    parser.add_argument("input", help="Input image file path")
+    parser.add_argument("output", help="Output file path")
+    parser.add_argument("--format", default="icns", choices=SUPPORTED_FORMATS,
+                        help=f"Output format ({', '.join(SUPPORTED_FORMATS)}) (default: icns)")
+    parser.add_argument("--min-size", type=int, default=16, help="Minimum icon size (default: 16), primarily for ICNS")
+    parser.add_argument("--max-size", type=int, help="Maximum icon size (default: auto-detected from image), primarily for ICNS")
     
     args = parser.parse_args()
     
-    png_path = args.input
-    icns_path = args.output
+    input_path = args.input
+    output_path = args.output
+    output_format = args.format.lower()
     
     # Check if input file exists
-    if not os.path.exists(png_path):
-        print(f"Error: Input file '{png_path}' does not exist.")
+    if not os.path.exists(input_path):
+        print(f"Error: Input file '{input_path}' does not exist.")
         sys.exit(1)
-    
-    # Check if input file is a PNG
-    if not png_path.lower().endswith('.png'):
-        print("Error: Input file must be a PNG image.")
-        sys.exit(1)
-    
+        
     try:
         # Display image information
-        width, height = get_image_info(png_path)
-        print(f"Input image: {png_path}")
+        width, height = get_image_info(input_path)
+        print(f"Input image: {input_path}")
         print(f"Image dimensions: {width}x{height}")
         
-        create_icns(png_path, icns_path, args.min_size, args.max_size)
+        convert_image(input_path, output_path, output_format, args.min_size, args.max_size)
     except Exception as e:
         print(f"Error converting image: {e}")
         sys.exit(1)
