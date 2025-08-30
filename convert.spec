@@ -16,14 +16,16 @@ sys.path.append(os.path.abspath(os.getcwd()))
 
 block_cipher = None
 
+datas = [
+   ('Assets.car', '.'),
+   ('zip.png', '.'),
+   ('zipd.png', '.'),
+]
 
-
-
-
-
-a = Analysis(['gui_converter.py'],
+a = Analysis(['launcher.py'],
              pathex=[],
              binaries=[],
+             datas=datas,
              hiddenimports=[],
              hookspath=[],
              hooksconfig={},
@@ -42,7 +44,7 @@ exe = EXE(pyz,
           a.scripts,
           [],
           exclude_binaries=True,
-          name='gui_converter',
+          name='launcher',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,
@@ -63,10 +65,10 @@ coll = COLLECT(exe,
                name='gui_vonverter')
 
 app = BUNDLE(coll,
-             name='gui_converter.app',
-             icon="support/Success.icns",
+             name='launcher.app',
+             icon="AppIcon.icns",
              info_plist={
-                "CFBundleName": "gui_converter",
+                "CFBundleName": "launcher",
                 "CFBundleVersion": "1.0.0",
                 "CFBundleShortVersionString": "1.0.0",
                 "NSHumanReadableCopyright": "1.0.0",

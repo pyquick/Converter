@@ -157,28 +157,19 @@ def list_zip_contents(zip_path):
     Args:
         zip_path (str): Path to the ZIP file
     """
+    file_info_list = []
     try:
         with zipfile.ZipFile(zip_path, 'r') as zipf:
-            print(f"Contents of {zip_path}:")
-            print("-" * 50)
-            
-            total_size = 0
-            file_count = 0
+            # Removed console print statements
             
             for info in zipf.filelist:
-                print(f"{info.filename:<40} {info.file_size:>10} bytes")
-                total_size += info.file_size
-                file_count += 1
-                
-            print("-" * 50)
-            print(f"Total files: {file_count}")
-            print(f"Total size: {total_size} bytes")
+                file_info_list.append(f"{info.filename:<40} {info.file_size:>10} bytes")
             
-        return True
+        return file_info_list
         
     except Exception as e:
-        print(f"Error reading ZIP file: {str(e)}")
-        return False
+        file_info_list.append(f"Error reading ZIP file: {str(e)}")
+        return file_info_list
 
 
 def main():

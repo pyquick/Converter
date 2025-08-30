@@ -18,7 +18,7 @@ import shutil
 import subprocess
 from PIL import Image
 
-SUPPORTED_FORMATS = ["icns", "png", "jpg", "webp"]
+SUPPORTED_FORMATS = ["icns", "png", "jpg", "webp", "bmp", "gif", "tiff", "ico", "jpeg"]
 
 def get_image_info(image_path):
     """

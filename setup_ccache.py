@@ -17,8 +17,8 @@ def setup_ccache():
         return False
     
     # Define paths
-    ccache_version = "v4.2.1"
     version="4.2.1"
+    ccache_version = f"v{version}"
     ccache_url = f"https://nuitka.net/ccache/{ccache_version}/ccache-{version}.zip"
     cache_dir = f"/Users/{username}/Library/Caches/Nuitka/downloads/ccache/{ccache_version}"
     zip_path = os.path.join(cache_dir, f"ccache-{ccache_version}.zip")
@@ -61,6 +61,9 @@ def setup_ccache():
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(cache_dir)
         print("Extraction completed")
+    except FileExistsError:
+        print("ccache already exists")
+        return True
     except Exception as e:
         print(f"Failed to extract ccache: {e}")
         return False
@@ -68,5 +71,3 @@ def setup_ccache():
     print("ccache setup completed successfully")
     return True
 
-if __name__ == "__main__":
-    setup_ccache()

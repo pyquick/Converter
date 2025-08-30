@@ -18,7 +18,22 @@ pip install -r requirements.txt
 ```
 Pillow>=8.0.0
 Nuitka>=1.0.0
+PySide6
+rarfile
+py7zr
 ```
+
+**Note for RAR support:** The `rarfile` Python library requires the external `unrar` program to be installed on your system. Please install it using your system's package manager or download it from [RarLab](https://www.rarlab.com/rar_add.htm).
+
+- **macOS (using Homebrew)**:
+  ```bash
+  brew install unrar
+  ```
+- **Linux (Debian/Ubuntu)**:
+  ```bash
+  sudo apt-get install unrar
+  ```
+- **Windows**: Download and install the UnRAR DLL from [RarLab](https://www.rarlab.com/rar_add.htm) and ensure its path is added to your system's PATH environment variable.
 
 Note: Tkinter is usually included with Python installations. For ZIP file GUI functionality, no additional dependencies are required beyond the standard library.
 
@@ -42,7 +57,7 @@ python3 support/convert.py input.png output.icns --min-size 16 --max-size 512
 
 For a graphical interface, run:
 ```
-python3 gui_converter.py
+python3 launcher.py
 ```
 
 ## Building a Standalone Application
@@ -157,7 +172,7 @@ This will generate icons in sizes: 16x16, 32x32, 64x64, 128x128, and 256x256, in
 
 To use the GUI version:
 ```
-python3 gui_converter.py
+python3 launcher.py
 ```
 
 The GUI provides a user-friendly interface with:
@@ -185,7 +200,7 @@ If you encounter issues with the build process, you can use the simple launcher 
 
 Or run directly with Python 3.13:
 ```
-python3.13 gui_converter.py
+python3.13 launcher.py
 ```
 
 For ZIP file operations, you can use either the command line:

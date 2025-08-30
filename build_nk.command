@@ -11,8 +11,8 @@ echo "Building PNG to ICNS Converter..."
 echo "Project directory: $PROJECT_DIR"
 
 # Check if required files exist
-if [ ! -f "$PROJECT_DIR/gui_converter.py" ]; then
-    echo "Error: gui_converter.py not found in project directory"
+if [ ! -f "$PROJECT_DIR/launcher.py" ]; then
+    echo "Error: launcher.py not found in project directory"
     exit 1
 fi
 
@@ -62,7 +62,7 @@ fi
 
 # Install required dependencies if not already installed
 echo "Checking and installing dependencies..."
-python3.13 -m pip install Pillow nuitka wxpython
+python3.13 -m pip install Pillow nuitka PySide6 rarfile py7zr
 
 # Try to determine Python version
 PYTHON_VERSION=$(python3.13 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
@@ -79,14 +79,15 @@ BUILD_SUCCESS=0
 echo "Trying recommended build approach..."
 python3.13 -m nuitka \
     --standalone \
-    --enable-plugin=no-qt \
     --macos-create-app-bundle \
+    --no-deployment-flag=self-execution \
     --macos-app-version=1.0 \
-    --macos-app-icon="$PROJECT_DIR/support/Success.icns" \
+    --macos-app-icon="$PROJECT_DIR/AppIcon.icns" \
     --include-data-dir="$PROJECT_DIR/support=support" \
     --output-dir="$DIST_DIR" \
     --remove-output \
-    "$PROJECT_DIR/gui_converter.py" && BUILD_SUCCESS=1
+    --enable-plugin=pyside6 \
+    "$PROJECT_DIR/launcher.py" && BUILD_SUCCESS=1
 
 # If that fails, try alternative approaches
 if [ $BUILD_SUCCESS -eq 0 ]; then
@@ -96,12 +97,13 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     python3.13 -m nuitka \
         --standalone \
         --macos-create-app-bundle \
-        --enable-plugin=no-qt \
+        --no-deployment-flag=self-execution \
         --macos-app-version=1.0 \
-        --macos-app-icon="$PROJECT_DIR/support/Success.icns" \
+        --enable-plugin=pyside6 \
+        --macos-app-icon="$PROJECT_DIR/AppIcon.icns" \
         --include-data-dir="$PROJECT_DIR/support=support" \
         --output-dir="$DIST_DIR" \
-        "$PROJECT_DIR/gui_converter.py" && BUILD_SUCCESS=1
+        "$PROJECT_DIR/launcher.py" && BUILD_SUCCESS=1
 fi
 
 if [ $BUILD_SUCCESS -eq 0 ]; then
@@ -111,11 +113,12 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     python3.13 -m nuitka \
         --standalone \
         --macos-create-app-bundle \
-        --enable-plugin=no-qt \
+        --no-deployment-flag=self-execution \
+        --enable-plugin=pyside6 \
         --include-data-dir="$PROJECT_DIR/support=support" \
         --output-dir="$DIST_DIR" \
         --macos-app-version=1.0 \
-        "$PROJECT_DIR/gui_converter.py" && BUILD_SUCCESS=1
+        "$PROJECT_DIR/launcher.py" && BUILD_SUCCESS=1
 fi
 
 if [ $BUILD_SUCCESS -eq 0 ]; then
@@ -134,13 +137,13 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     # Copy required files
     echo "Copying application files..."
     cp -r "$PROJECT_DIR/support" "$RESOURCES_DIR/"
-    cp "$PROJECT_DIR/gui_converter.py" "$RESOURCES_DIR/"
+    cp "$PROJECT_DIR/launcher.py" "$RESOURCES_DIR/"
     
     # Create a simple launcher script
     LAUNCHER_SCRIPT="$MACOS_DIR/png_to_icns_converter"
     echo "#!/bin/bash" > "$LAUNCHER_SCRIPT"
     echo "cd \"\$(dirname \"\$0\")/../Resources\" || exit 1" >> "$LAUNCHER_SCRIPT"
-    echo "python3.13 gui_converter.py" >> "$LAUNCHER_SCRIPT"
+    echo "python3.13 launcher.py" >> "$LAUNCHER_SCRIPT"
     chmod +x "$LAUNCHER_SCRIPT"
     
     # Create Info.plist
@@ -156,7 +159,7 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     <key>CFBundleName</key>
     <string>PNG to ICNS Converter</string>
     <key>CFBundleIconFile</key>
-    <string>Success.icns</string>
+    <string>AppIcon.icns</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundlePackageType</key>
@@ -172,8 +175,8 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
 EOF
     
     # Copy the icon
-    if [ -f "$PROJECT_DIR/support/Success.icns" ]; then
-        cp "$PROJECT_DIR/support/Success.icns" "$RESOURCES_DIR/"
+    if [ -f "$PROJECT_DIR/AppIcon.icns" ]; then
+        cp "$PROJECT_DIR/AppIcon.icns" "$RESOURCES_DIR/"
     fi
     
     BUILD_SUCCESS=1
@@ -204,7 +207,7 @@ else
     echo "Build failed with all approaches!"
     echo "Recommendations:"
     echo "1. Run the application directly with Python 3.13:"
-    echo "   python3.13 gui_converter.py"
+    echo "   python3.13 launcher.py"
     echo "2. Use the simple launcher script:"
     echo "   ./PNG_to_ICNS_Converter.command"
     exit 1

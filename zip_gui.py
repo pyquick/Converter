@@ -1,442 +1,847 @@
-#!/usr/bin/env python3
-"""
-GUI for ZIP File Processing Tool
-
-This script provides a graphical interface for creating, extracting, and managing ZIP files.
-"""
-
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
 import os
 import sys
-import threading
-import zipfile
+# import threading # PySide6 will use QThread
+import subprocess
 from pathlib import Path
 
-# Add the current directory to Python path
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QLineEdit, QListWidget, QProgressBar,
+    QFileDialog, QMessageBox, QTabWidget, QGroupBox, QSpacerItem, QSizePolicy, QComboBox
+)
+from PySide6.QtGui import QIcon, QFont, QPalette
+from PySide6.QtCore import Qt, QSize, Signal, QObject, QThread
+
+# Add the current directory to Python path to import convertzip module
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-# Import functions from convertzip module
-try:
-    from convertzip import create_zip, extract_zip, add_to_zip, list_zip_contents
-except ImportError:
-    # If direct import fails, try alternative approach
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("convertzip", 
-                                                  os.path.join(os.path.dirname(os.path.abspath(__file__)), 
-                                                              "convertzip.py"))
-    convertzip_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(convertzip_module)
-    
-    # Get functions from the module
-    create_zip = convertzip_module.create_zip
-    extract_zip = convertzip_module.extract_zip
-    add_to_zip = convertzip_module.add_to_zip
-    list_zip_contents = convertzip_module.list_zip_contents
+from support.archive_manager import create_archive, extract_archive, add_to_archive, list_archive_contents, SUPPORTED_ARCHIVE_FORMATS
 
 
-class ZipGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("ZIP File Processing Tool")
-       # self.root.geometry("600x500")
-        self.root.resizable(True, True)
+# --- Worker Classes for QThread ---
+class CreateZipWorker(QObject):
+    finished = Signal()
+    progress_updated = Signal(str, int)
+    conversion_error = Signal(str)
+
+    def __init__(self, output_path, sources, archive_format):
+        super().__init__()
+        self.output_path = output_path
+        self.sources = sources
+        self.archive_format = archive_format
+
+    def run(self):
+        try:
+            create_archive(self.output_path, self.sources, self.archive_format, self._update_progress_callback)
+            self.finished.emit()
+        except NotImplementedError as e:
+            self.conversion_error.emit(str(e))
+        except Exception as e:
+            self.conversion_error.emit(str(e))
+
+    def _update_progress_callback(self, message, percentage):
+        self.progress_updated.emit(message, percentage)
+
+class ExtractZipWorker(QObject):
+    finished = Signal()
+    progress_updated = Signal(str, int)
+    conversion_error = Signal(str)
+
+    def __init__(self, zip_path, dest_path):
+        super().__init__()
+        self.archive_path = zip_path # Renamed for clarity with generic archive_manager
+        self.extract_to = dest_path
+
+    def run(self):
+        try:
+            extract_archive(self.archive_path, self.extract_to, self._update_progress_callback)
+            self.finished.emit()
+        except Exception as e:
+            self.conversion_error.emit(str(e))
+
+    def _update_progress_callback(self, message, percentage):
+        self.progress_updated.emit(message, percentage)
+
+class AddToZipWorker(QObject):
+    finished = Signal()
+    progress_updated = Signal(str, int)
+    conversion_error = Signal(str)
+
+    def __init__(self, zip_path, file_path):
+        super().__init__()
+        self.archive_path = zip_path # Renamed for clarity with generic archive_manager
+        self.file_to_add_path = file_path
+
+    def run(self):
+        try:
+            add_to_archive(self.archive_path, self.file_to_add_path, self._update_progress_callback)
+            self.finished.emit()
+        except NotImplementedError as e:
+            self.conversion_error.emit(str(e))
+        except Exception as e:
+            self.conversion_error.emit(str(e))
+
+    def _update_progress_callback(self, message, percentage):
+        self.progress_updated.emit(message, percentage)
+
+class ListZipContentsWorker(QObject):
+    finished = Signal(list) # Emits list of contents
+    conversion_error = Signal(str)
+
+    def __init__(self, zip_path):
+        super().__init__()
+        self.archive_path = zip_path # Renamed for clarity with generic archive_manager
+
+    def run(self):
+        try:
+            contents = list_archive_contents(self.archive_path)
+            self.finished.emit(contents)
+        except Exception as e:
+            self.conversion_error.emit(str(e))
+
+
+class ZipGUI(QMainWindow):
+    # Define QSS for light mode
+    LIGHT_QSS = """
+        QMainWindow {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+            color: #333333;
+        }
+        QWidget {
+            background-color: #ffffff;
+            color: #333333;
+        }
+        QLabel {
+            color: #333333;
+        }
+        QPushButton {
+            background-color: #4CAF50; /* Green */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            min-height: 30px;
+        }
+        QPushButton:hover {
+            background-color: #45a049;
+        }
+        QPushButton:pressed {
+            background-color: #3d8b40;
+        }
+        QLineEdit, QComboBox, QSpinBox {
+            border: 1px solid #cccccc;
+            border-radius: 5px;
+            padding: 5px;
+            background-color: #fdfdfd;
+            color: #333333;
+            min-height: 24px;
+        }
+        QListWidget {
+            border: 1px solid #cccccc;
+            border-radius: 5px;
+            background-color: #fdfdfd;
+            color: #333333;
+        }
+        QGroupBox {
+            font-weight: bold;
+            margin-top: 10px;
+            border: 1px solid #dddddd;
+            border-radius: 8px;
+            padding-top: 20px;
+            background-color: #ffffff;
+            color: #333333;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            padding: 0 5px;
+            margin-left: 5px;
+            color: #333333;
+        }
+        QProgressBar {
+            border: 1px solid #cccccc;
+            border-radius: 5px;
+            text-align: center;
+            background-color: #e0e0e0;
+            color: #333333;
+        }
+        QProgressBar::chunk {
+            background-color: #2196F3; /* Blue */
+            border-radius: 5px;
+        }
+        QTabWidget::pane {
+            border: 1px solid #dddddd;
+            border-radius: 8px;
+            background-color: #ffffff;
+        }
+        QTabBar::tab {
+            background: #e0e0e0;
+            border: 1px solid #dddddd;
+            border-bottom-color: #dddddd;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            padding: 8px 15px;
+            margin-right: 2px;
+            color: #555555;
+        }
+        QTabBar::tab:selected {
+            background: #ffffff;
+            border-bottom-color: #ffffff;
+            color: #333333;
+        }
+        QTabBar::tab:hover {
+            background-color: #f0f0f0;
+        }
+    """
+
+    # Define QSS for dark mode
+    DARK_QSS = """
+        QMainWindow {
+            background-color: #2b2b2b;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+            color: #e0e0e0;
+        }
+        QWidget {
+            background-color: #3c3c3c;
+            color: #e0e0e0;
+        }
+        QLabel {
+            color: #e0e0e0;
+        }
+        QPushButton {
+            background-color: #4CAF50; /* Green */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            min-height: 30px;
+        }
+        QPushButton:hover {
+            background-color: #45a049;
+        }
+        QPushButton:pressed {
+            background-color: #3d8b40;
+        }
+        QLineEdit, QComboBox, QSpinBox {
+            border: 1px solid #555555;
+            border-radius: 5px;
+            padding: 5px;
+            background-color: #4c4c4c;
+            color: #e0e0e0;
+            min-height: 24px;
+        }
+        QListWidget {
+            border: 1px solid #555555;
+            border-radius: 5px;
+            background-color: #4c4c4c;
+            color: #e0e0e0;
+        }
+        QGroupBox {
+            font-weight: bold;
+            margin-top: 10px;
+            border: 1px solid #555555;
+            border-radius: 8px;
+            padding-top: 20px;
+            background-color: #3c3c3c;
+            color: #e0e0e0;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            padding: 0 5px;
+            margin-left: 5px;
+            color: #e0e0e0;
+        }
+        QProgressBar {
+            border: 1px solid #555555;
+            border-radius: 5px;
+            text-align: center;
+            background-color: #4c4c4c;
+            color: #e0e0e0;
+        }
+        QProgressBar::chunk {
+            background-color: #2196F3; /* Blue */
+            border-radius: 5px;
+        }
+        QTabWidget::pane {
+            border: 1px solid #555555;
+            border-radius: 8px;
+            background-color: #3c3c3c;
+        }
+        QTabBar::tab {
+            background: #4c4c4c;
+            border: 1px solid #555555;
+            border-bottom-color: #555555;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            padding: 8px 15px;
+            margin-right: 2px;
+            color: #b0b0b0;
+        }
+        QTabBar::tab:selected {
+            background: #3c3c3c;
+            border-bottom-color: #3c3c3c;
+            color: #e0e0e0;
+        }
+        QTabBar::tab:hover {
+            background-color: #404040;
+        }
+    """
+
+    def __init__(self, initial_dark_mode=False):
+        super().__init__()
+        self.setWindowTitle("ZIP File Processing Tool")
+        self.setGeometry(200, 200, 800, 600)
+        self.setMinimumSize(600, 500)
         
-        # Variables
+        self.init_variables()
+        self.setup_ui()
+        self._apply_theme(initial_dark_mode)
+        self.center_window() # Center the window after UI setup
+        
+    def init_variables(self):
+        # Variables for Create ZIP tab
         self.create_sources = []
-        self.create_output_path = tk.StringVar()
-        self.extract_zip_path = tk.StringVar()
-        self.extract_dest_path = tk.StringVar()
-        self.add_zip_path = tk.StringVar()
-        self.add_file_path = tk.StringVar()
+        self.create_output_path = ""
+        self.create_archive_format = "zip" # Default to zip
+        self.create_zip_worker_thread = None # Renamed to generic for clarity
+        self.create_zip_worker = None # Renamed to generic for clarity
         
-        # Create UI
-        self.create_widgets()
+        # Variables for Extract ZIP tab
+        self.extract_zip_path = ""
+        self.extract_dest_path = ""
+        self.extract_zip_worker_thread = None # Renamed to generic for clarity
+        self.extract_zip_worker = None # Renamed to generic for clarity
         
-    def create_widgets(self):
-        # Create notebook for tabs
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Variables for Add to ZIP tab
+        self.add_zip_path = ""
+        self.add_file_path = ""
+        self.add_to_zip_worker_thread = None # Renamed to generic for clarity
+        self.add_to_zip_worker = None # Renamed to generic for clarity
         
-        # Create tabs
+        # Variables for List Contents tab
+        self.list_zip_path = ""
+        self.list_zip_worker_thread = None # Renamed to generic for clarity
+        self.list_zip_worker = None # Renamed to generic for clarity
+
+    def setup_ui(self):
+        self.main_widget = QWidget(self)
+        self.setCentralWidget(self.main_widget)
+        self.main_layout = QVBoxLayout(self.main_widget)
+        
+        self.notebook = QTabWidget(self.main_widget)
+        self.main_layout.addWidget(self.notebook, 1) # Add notebook with stretch
+        
         self.create_create_tab()
         self.create_extract_tab()
         self.create_add_tab()
         self.create_list_tab()
         
+        # Add a stretch to the main_layout to push everything to the top
+        self.main_layout.addStretch(1)
+
+    def _apply_theme(self, is_dark_mode):
+        if is_dark_mode:
+            self.setStyleSheet(self.DARK_QSS)
+        else:
+            self.setStyleSheet(self.LIGHT_QSS)
+
+    def _apply_system_theme(self, is_dark_mode):
+        self._apply_theme(is_dark_mode)
+
+    def center_window(self):
+        qr = self.frameGeometry()
+        cp = self.screen().availableGeometry().center()
+        qr.moveCenter(cp)
+        self.move(qr.topLeft())
+
+    # --- Tab creation methods (to be implemented with PySide6 widgets) ---
     def create_create_tab(self):
-        """Create tab for creating ZIP files"""
-        frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(frame, text="Create ZIP")
-        
+        tab_panel = QWidget()
+        tab_sizer = QVBoxLayout(tab_panel)
+        self.notebook.addTab(tab_panel, "Create Archive") # Changed tab title
+
         # Output file selection
-        ttk.Label(frame, text="Output ZIP File:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        output_frame = ttk.Frame(frame)
-        output_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        ttk.Entry(output_frame, textvariable=self.create_output_path, width=50).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(output_frame, text="Browse...", command=self.browse_create_output).grid(row=0, column=1)
-        output_frame.columnconfigure(0, weight=1)
+        output_box = QGroupBox("Output Archive File") # Changed group box title
+        output_box_sizer = QHBoxLayout(output_box)
         
+        self.create_output_text = QLineEdit()
+        self.create_output_text.setReadOnly(True)
+        output_box_sizer.addWidget(self.create_output_text, 1)
+        output_button = QPushButton("Browse...")
+        output_button.clicked.connect(self.browse_create_output)
+        output_box_sizer.addWidget(output_button)
+        tab_sizer.addWidget(output_box)
+
+        # Archive Format Selection (new)
+        format_layout = QHBoxLayout()
+        format_label = QLabel("Archive Format:")
+        self.create_format_combo = QComboBox()
+        # Filter formats to only allow creation of supported types
+        self.create_format_combo.addItems([f.upper() for f in SUPPORTED_ARCHIVE_FORMATS if f != 'rar' and f != 'tgz'])
+        self.create_format_combo.setCurrentText("ZIP")
+        self.create_format_combo.currentIndexChanged.connect(self.on_create_format_change)
+        format_layout.addWidget(format_label)
+        format_layout.addWidget(self.create_format_combo, 1)
+        tab_sizer.addLayout(format_layout)
+
         # Source files list
-        ttk.Label(frame, text="Source Files/Directories:").grid(row=2, column=0, sticky=tk.W, pady=(10, 5))
+        sources_box = QGroupBox("Source Files/Directories")
+        sources_box_sizer = QVBoxLayout(sources_box)
         
-        # Listbox for sources
-        listbox_frame = ttk.Frame(frame)
-        listbox_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
-        listbox_frame.columnconfigure(0, weight=1)
-        listbox_frame.rowconfigure(0, weight=1)
-        
-        self.sources_listbox = tk.Listbox(listbox_frame, selectmode=tk.EXTENDED)
-        self.sources_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=self.sources_listbox.yview)
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        self.sources_listbox.configure(yscrollcommand=scrollbar.set)
-        
+        self.sources_listbox = QListWidget()
+        sources_box_sizer.addWidget(self.sources_listbox, 1)
+
         # Buttons to add/remove sources
-        button_frame = ttk.Frame(frame)
-        button_frame.grid(row=4, column=0, columnspan=2, pady=5)
+        button_sizer = QHBoxLayout()
+        add_files_button = QPushButton("Add Files...")
+        add_files_button.clicked.connect(self.add_source_files)
+        button_sizer.addWidget(add_files_button)
         
-        ttk.Button(button_frame, text="Add Files...", command=self.add_source_files).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="Add Folder...", command=self.add_source_folder).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(button_frame, text="Remove Selected", command=self.remove_source).pack(side=tk.LEFT, padx=(0, 5))
+        add_folder_button = QPushButton("Add Folder...")
+        add_folder_button.clicked.connect(self.add_source_folder)
+        button_sizer.addWidget(add_folder_button)
         
+        remove_button = QPushButton("Remove Selected")
+        remove_button.clicked.connect(self.remove_source)
+        button_sizer.addWidget(remove_button)
+        button_sizer.addStretch(1) # Push buttons to left
+        
+        sources_box_sizer.addLayout(button_sizer)
+        tab_sizer.addWidget(sources_box, 1) # Give sources box more stretch
+
         # Progress bar
-        self.create_progress = ttk.Progressbar(frame, mode='determinate')
-        self.create_progress.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+        self.create_progress_label = QLabel("")
+        tab_sizer.addWidget(self.create_progress_label)
         
-        # Progress label
-        self.create_progress_label = ttk.Label(frame, text="")
-        self.create_progress_label.grid(row=6, column=0, columnspan=2, pady=(0, 10))
-        
+        self.create_progress = QProgressBar()
+        self.create_progress.setRange(0, 100)
+        self.create_progress.setValue(0)
+        tab_sizer.addWidget(self.create_progress)
+
         # Create button
-        ttk.Button(frame, text="Create ZIP", command=self.start_create_zip).grid(row=7, column=0, columnspan=2, pady=10)
+        create_button = QPushButton("Create Archive") # Changed button text
+        create_button.clicked.connect(self.start_create_archive) # Changed signal
+        tab_sizer.addWidget(create_button, 0, Qt.AlignmentFlag.AlignCenter)
         
-        # Configure grid weights
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(3, weight=1)
-        
+        tab_sizer.addStretch(1) # Push content to top
+
     def create_extract_tab(self):
-        """Create tab for extracting ZIP files"""
-        frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(frame, text="Extract ZIP")
-        
-        # ZIP file selection
-        ttk.Label(frame, text="ZIP File to Extract:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        zip_frame = ttk.Frame(frame)
-        zip_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        ttk.Entry(zip_frame, textvariable=self.extract_zip_path, width=50).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(zip_frame, text="Browse...", command=self.browse_extract_zip).grid(row=0, column=1)
-        zip_frame.columnconfigure(0, weight=1)
-        
+        tab_panel = QWidget()
+        tab_sizer = QVBoxLayout(tab_panel)
+        self.notebook.addTab(tab_panel, "Extract Archive") # Changed tab title
+
+        # Archive file selection (changed title)
+        zip_box = QGroupBox("Archive File to Extract")
+        zip_box_sizer = QHBoxLayout(zip_box)
+
+        self.extract_zip_text = QLineEdit()
+        self.extract_zip_text.setReadOnly(True)
+        zip_box_sizer.addWidget(self.extract_zip_text, 1)
+        zip_button = QPushButton("Browse...")
+        zip_button.clicked.connect(self.browse_extract_archive) # Changed signal
+        zip_box_sizer.addWidget(zip_button)
+        tab_sizer.addWidget(zip_box)
+
         # Destination folder selection
-        ttk.Label(frame, text="Destination Folder:").grid(row=2, column=0, sticky=tk.W, pady=(10, 5))
-        dest_frame = ttk.Frame(frame)
-        dest_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        ttk.Entry(dest_frame, textvariable=self.extract_dest_path, width=50).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(dest_frame, text="Browse...", command=self.browse_extract_dest).grid(row=0, column=1)
-        dest_frame.columnconfigure(0, weight=1)
-        
+        dest_box = QGroupBox("Destination Folder")
+        dest_box_sizer = QHBoxLayout(dest_box)
+
+        self.extract_dest_text = QLineEdit()
+        self.extract_dest_text.setReadOnly(True)
+        dest_box_sizer.addWidget(self.extract_dest_text, 1)
+        dest_button = QPushButton("Browse...")
+        dest_button.clicked.connect(self.browse_extract_dest)
+        dest_box_sizer.addWidget(dest_button)
+        tab_sizer.addWidget(dest_box)
+
         # Progress bar
-        self.extract_progress = ttk.Progressbar(frame, mode='determinate')
-        self.extract_progress.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+        self.extract_progress_label = QLabel("")
+        tab_sizer.addWidget(self.extract_progress_label)
         
-        # Progress label
-        self.extract_progress_label = ttk.Label(frame, text="")
-        self.extract_progress_label.grid(row=5, column=0, columnspan=2, pady=(0, 10))
-        
+        self.extract_progress = QProgressBar()
+        self.extract_progress.setRange(0, 100)
+        self.extract_progress.setValue(0)
+        tab_sizer.addWidget(self.extract_progress)
+
         # Extract button
-        ttk.Button(frame, text="Extract ZIP", command=self.start_extract_zip).grid(row=6, column=0, columnspan=2, pady=10)
+        extract_button = QPushButton("Extract Archive") # Changed button text
+        extract_button.clicked.connect(self.start_extract_archive) # Changed signal
+        tab_sizer.addWidget(extract_button, 0, Qt.AlignmentFlag.AlignCenter)
         
-        # Configure grid weights
-        frame.columnconfigure(0, weight=1)
-        
+        tab_sizer.addStretch(1) # Push content to top
+
     def create_add_tab(self):
-        """Create tab for adding files to existing ZIP"""
-        frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(frame, text="Add to ZIP")
-        
-        # ZIP file selection
-        ttk.Label(frame, text="Existing ZIP File:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        zip_frame = ttk.Frame(frame)
-        zip_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        ttk.Entry(zip_frame, textvariable=self.add_zip_path, width=50).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(zip_frame, text="Browse...", command=self.browse_add_zip).grid(row=0, column=1)
-        zip_frame.columnconfigure(0, weight=1)
-        
+        tab_panel = QWidget()
+        tab_sizer = QVBoxLayout(tab_panel)
+        self.notebook.addTab(tab_panel, "Add to Archive") # Changed tab title
+
+        # Existing Archive file selection
+        zip_box = QGroupBox("Existing Archive File") # Changed group box title
+        zip_box_sizer = QHBoxLayout(zip_box)
+
+        self.add_zip_text = QLineEdit()
+        self.add_zip_text.setReadOnly(True)
+        zip_box_sizer.addWidget(self.add_zip_text, 1)
+        zip_button = QPushButton("Browse...")
+        zip_button.clicked.connect(self.browse_add_archive) # Changed signal
+        zip_box_sizer.addWidget(zip_button)
+        tab_sizer.addWidget(zip_box)
+
         # File to add selection
-        ttk.Label(frame, text="File to Add:").grid(row=2, column=0, sticky=tk.W, pady=(10, 5))
-        file_frame = ttk.Frame(frame)
-        file_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        ttk.Entry(file_frame, textvariable=self.add_file_path, width=50).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(file_frame, text="Browse...", command=self.browse_add_file).grid(row=0, column=1)
-        file_frame.columnconfigure(0, weight=1)
-        
+        file_box = QGroupBox("File to Add")
+        file_box_sizer = QHBoxLayout(file_box)
+
+        self.add_file_text = QLineEdit()
+        self.add_file_text.setReadOnly(True)
+        file_box_sizer.addWidget(self.add_file_text, 1)
+        file_button = QPushButton("Browse...")
+        file_button.clicked.connect(self.browse_add_file)
+        file_box_sizer.addWidget(file_button)
+        tab_sizer.addWidget(file_box)
+
         # Progress bar
-        self.add_progress = ttk.Progressbar(frame, mode='determinate')
-        self.add_progress.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+        self.add_progress_label = QLabel("")
+        tab_sizer.addWidget(self.add_progress_label)
         
-        # Progress label
-        self.add_progress_label = ttk.Label(frame, text="")
-        self.add_progress_label.grid(row=5, column=0, columnspan=2, pady=(0, 10))
-        
+        self.add_progress = QProgressBar()
+        self.add_progress.setRange(0, 100)
+        self.add_progress.setValue(0)
+        tab_sizer.addWidget(self.add_progress)
+
         # Add button
-        ttk.Button(frame, text="Add to ZIP", command=self.start_add_to_zip).grid(row=6, column=0, columnspan=2, pady=10)
+        add_button = QPushButton("Add to Archive") # Changed button text
+        add_button.clicked.connect(self.start_add_to_archive) # Changed signal
+        tab_sizer.addWidget(add_button, 0, Qt.AlignmentFlag.AlignCenter)
         
-        # Configure grid weights
-        frame.columnconfigure(0, weight=1)
-        
+        tab_sizer.addStretch(1) # Push content to top
+
     def create_list_tab(self):
-        """Create tab for listing ZIP contents"""
-        frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(frame, text="List Contents")
-        
-        # ZIP file selection
-        ttk.Label(frame, text="ZIP File:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        zip_frame = ttk.Frame(frame)
-        zip_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        self.list_zip_path = tk.StringVar()
-        ttk.Entry(zip_frame, textvariable=self.list_zip_path, width=50).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(zip_frame, text="Browse...", command=self.browse_list_zip).grid(row=0, column=1)
-        zip_frame.columnconfigure(0, weight=1)
-        
+        tab_panel = QWidget()
+        tab_sizer = QVBoxLayout(tab_panel)
+        self.notebook.addTab(tab_panel, "List Contents")
+
+        # Archive file selection (changed title)
+        zip_box = QGroupBox("Archive File")
+        zip_box_sizer = QHBoxLayout(zip_box)
+
+        self.list_zip_text = QLineEdit()
+        self.list_zip_text.setReadOnly(True)
+        zip_box_sizer.addWidget(self.list_zip_text, 1)
+        zip_button = QPushButton("Browse...")
+        zip_button.clicked.connect(self.browse_list_archive) # Changed signal
+        zip_box_sizer.addWidget(zip_button)
+        tab_sizer.addWidget(zip_box)
+
         # Listbox for contents
-        ttk.Label(frame, text="ZIP Contents:").grid(row=2, column=0, sticky=tk.W, pady=(10, 5))
-        
-        listbox_frame = ttk.Frame(frame)
-        listbox_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
-        listbox_frame.columnconfigure(0, weight=1)
-        listbox_frame.rowconfigure(0, weight=1)
-        
-        self.contents_listbox = tk.Listbox(listbox_frame)
-        self.contents_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=self.contents_listbox.yview)
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        self.contents_listbox.configure(yscrollcommand=scrollbar.set)
-        
+        contents_box = QGroupBox("Archive Contents") # Changed group box title
+        contents_box_sizer = QVBoxLayout(contents_box)
+
+        self.contents_listbox = QListWidget()
+        contents_box_sizer.addWidget(self.contents_listbox, 1)
+        tab_sizer.addWidget(contents_box, 1) # Give contents box more stretch
+
         # List button
-        ttk.Button(frame, text="List Contents", command=self.list_zip_contents).grid(row=4, column=0, columnspan=2, pady=10)
+        list_button = QPushButton("List Contents")
+        list_button.clicked.connect(self.start_list_archive_contents) # Changed signal
+        tab_sizer.addWidget(list_button, 0, Qt.AlignmentFlag.AlignCenter)
         
-        # Configure grid weights
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(3, weight=1)
-        
-    # Browse methods for Create tab
+        tab_sizer.addStretch(1) # Push content to top
+
+    # --- Event handlers (converted to PySide6) ---
+    def on_create_format_change(self):
+        selected_format = self.create_format_combo.currentText().lower()
+        self.create_archive_format = selected_format
+        # Adjust output path suffix automatically
+        if self.create_output_path:
+            base_name = os.path.splitext(self.create_output_path)[0]
+            self.create_output_path = f"{base_name}.{selected_format}"
+            self.create_output_text.setText(self.create_output_path)
+
     def browse_create_output(self):
-        folder = filedialog.askdirectory(
-            title="Select output folder for ZIP file"
-        )
-        if folder:
-            # 询问用户输入ZIP文件名
-            filename = filedialog.asksaveasfilename(
-                title="Save ZIP file as",
-                initialdir=folder,
-                defaultextension=".zip",
-                filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")]
-            )
-            if filename:
-                self.create_output_path.set(filename)
-            
+        file_dialog = QFileDialog(self)
+        selected_format = self.create_archive_format
+        # Generate wildcard for creation, excluding formats not supported for creation
+        creation_formats = [f.upper() for f in SUPPORTED_ARCHIVE_FORMATS if f not in ['rar', 'tgz']]
+        wildcard_parts = [f"{fmt} files (*.{fmt.lower()})" for fmt in creation_formats]
+        wildcard = ";;".join(wildcard_parts) + ";;All files (*.*)"
+        
+        file_dialog.setNameFilter(wildcard)
+        file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        file_dialog.setDefaultSuffix(selected_format)
+        if file_dialog.exec():
+            self.create_output_path = file_dialog.selectedFiles()[0]
+            if not self.create_output_path.lower().endswith(f".{selected_format}"):
+                self.create_output_path += f".{selected_format}"
+            self.create_output_text.setText(self.create_output_path)
+
     def add_source_files(self):
-        filenames = filedialog.askopenfilenames(
-            title="Select files to add"
-        )
-        if filenames:
-            for filename in filenames:
-                if filename not in self.create_sources:
-                    self.create_sources.append(filename)
-                    self.sources_listbox.insert(tk.END, filename)
-                    
+        file_dialog = QFileDialog(self)
+        file_dialog.setNameFilter("All files (*.*)")
+        file_dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
+        if file_dialog.exec():
+            paths = file_dialog.selectedFiles()
+            for path in paths:
+                if path not in self.create_sources:
+                    self.create_sources.append(path)
+                    self.sources_listbox.addItem(path)
+
     def add_source_folder(self):
-        folder = filedialog.askdirectory(
-            title="Select folder to add"
-        )
-        if folder:
-            if folder not in self.create_sources:
-                self.create_sources.append(folder)
-                self.sources_listbox.insert(tk.END, f"[FOLDER] {folder}")
-                
+        dir_dialog = QFileDialog(self)
+        dir_dialog.setFileMode(QFileDialog.FileMode.Directory)
+        dir_dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        if dir_dialog.exec():
+            folder_path = dir_dialog.selectedFiles()[0]
+            if folder_path not in self.create_sources:
+                self.create_sources.append(folder_path)
+                self.sources_listbox.addItem(f"[FOLDER] {folder_path}")
+
     def remove_source(self):
-        selection = self.sources_listbox.curselection()
-        if selection:
-            for i in reversed(selection):
-                self.sources_listbox.delete(i)
-                del self.create_sources[i]
-                
-    # Browse methods for Extract tab
-    def browse_extract_zip(self):
-        filename = filedialog.askopenfilename(
-            title="Select ZIP file to extract",
-            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")]
-        )
-        if filename:
-            self.extract_zip_path.set(filename)
-            
-    def browse_extract_dest(self):
-        folder = filedialog.askdirectory(
-            title="Select destination folder"
-        )
-        if folder:
-            self.extract_dest_path.set(folder)
-            
-    # Browse methods for Add tab
-    def browse_add_zip(self):
-        filename = filedialog.askopenfilename(
-            title="Select ZIP file",
-            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")]
-        )
-        if filename:
-            self.add_zip_path.set(filename)
-            
-    def browse_add_file(self):
-        filename = filedialog.askopenfilename(
-            title="Select file to add"
-        )
-        if filename:
-            self.add_file_path.set(filename)
-            
-    # Browse method for List tab
-    def browse_list_zip(self):
-        filename = filedialog.askopenfilename(
-            title="Select ZIP file",
-            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")]
-        )
-        if filename:
-            self.list_zip_path.set(filename)
-            
-    # Progress update methods
+        selected_items = self.sources_listbox.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, "Info", "Please select items to remove.")
+            return
+        
+        for item in selected_items:
+            row = self.sources_listbox.row(item)
+            self.sources_listbox.takeItem(row)
+            # Remove the item from self.create_sources list by value, not index
+            # This is safer if multiple items are selected and then removed in a loop
+            item_text = item.text()
+            if item_text.startswith("[FOLDER] "):
+                item_text = item_text[len("[FOLDER] "):]
+            if item_text in self.create_sources:
+                self.create_sources.remove(item_text)
+
     def update_create_progress(self, message, progress):
-        """Update progress for create operation"""
-        self.root.after(0, lambda: self.create_progress_label.config(text=message))
+        self.create_progress_label.setText(message)
         if progress >= 0:
-            self.root.after(0, lambda: self.create_progress.config(value=progress))
-        self.root.update_idletasks()
-        
-    def update_extract_progress(self, message, progress):
-        """Update progress for extract operation"""
-        self.root.after(0, lambda: self.extract_progress_label.config(text=message))
-        if progress >= 0:
-            self.root.after(0, lambda: self.extract_progress.config(value=progress))
-        self.root.update_idletasks()
-        
-    def update_add_progress(self, message, progress):
-        """Update progress for add operation"""
-        self.root.after(0, lambda: self.add_progress_label.config(text=message))
-        if progress >= 0:
-            self.root.after(0, lambda: self.add_progress.config(value=progress))
-        self.root.update_idletasks()
-        
-    # Start operation methods
-    def start_create_zip(self):
-        """Start ZIP creation in a separate thread"""
-        output_path = self.create_output_path.get()
-        if not output_path:
-            messagebox.showerror("Error", "Please specify an output ZIP file.")
+            self.create_progress.setValue(int(progress))
+
+    def start_create_archive(self):
+        if not self.create_output_path:
+            QMessageBox.critical(self, "Error", "Please specify an output archive file.")
             return
-            
         if not self.create_sources:
-            messagebox.showerror("Error", "Please add at least one source file or folder.")
+            QMessageBox.critical(self, "Error", "Please add at least one source file or folder.")
             return
-            
-        # Start in separate thread
-        thread = threading.Thread(target=self.create_zip_thread, args=(output_path, self.create_sources))
-        thread.daemon = True
-        thread.start()
-        
-    def create_zip_thread(self, output_path, sources):
-        """Thread function for creating ZIP"""
-        try:
-            success = create_zip(output_path, sources, self.update_create_progress)
-            if success:
-                self.root.after(0, lambda: messagebox.showinfo("Success", "ZIP file created successfully!"))
-            else:
-                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to create ZIP file."))
-        except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Error", f"Error creating ZIP: {str(e)}"))
-            
-    def start_extract_zip(self):
-        """Start ZIP extraction in a separate thread"""
-        zip_path = self.extract_zip_path.get()
-        dest_path = self.extract_dest_path.get()
-        
-        if not zip_path:
-            messagebox.showerror("Error", "Please specify a ZIP file to extract.")
+        if self.create_archive_format == 'rar':
+            QMessageBox.critical(self, "Error", "Creating RAR archives is not supported.")
             return
-            
-        if not dest_path:
-            messagebox.showerror("Error", "Please specify a destination folder.")
-            return
-            
-        # Start in separate thread
-        thread = threading.Thread(target=self.extract_zip_thread, args=(zip_path, dest_path))
-        thread.daemon = True
-        thread.start()
+
+        self.create_progress_label.setText("Starting archive creation...")
+        self.create_progress.setValue(0)
         
-    def extract_zip_thread(self, zip_path, dest_path):
-        """Thread function for extracting ZIP"""
-        try:
-            success = extract_zip(zip_path, dest_path, self.update_extract_progress)
-            if success:
-                self.root.after(0, lambda: messagebox.showinfo("Success", "ZIP file extracted successfully!"))
-            else:
-                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to extract ZIP file."))
-        except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Error", f"Error extracting ZIP: {str(e)}"))
-            
-    def start_add_to_zip(self):
-        """Start adding file to ZIP in a separate thread"""
-        zip_path = self.add_zip_path.get()
-        file_path = self.add_file_path.get()
-        
-        if not zip_path:
-            messagebox.showerror("Error", "Please specify a ZIP file.")
-            return
-            
-        if not file_path:
-            messagebox.showerror("Error", "Please specify a file to add.")
-            return
-            
-        # Start in separate thread
-        thread = threading.Thread(target=self.add_to_zip_thread, args=(zip_path, file_path))
-        thread.daemon = True
-        thread.start()
-        
-    def add_to_zip_thread(self, zip_path, file_path):
-        """Thread function for adding file to ZIP"""
-        try:
-            success = add_to_zip(zip_path, file_path, self.update_add_progress)
-            if success:
-                self.root.after(0, lambda: messagebox.showinfo("Success", "File added to ZIP successfully!"))
-            else:
-                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to add file to ZIP."))
-        except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Error", f"Error adding to ZIP: {str(e)}"))
-            
-    def list_zip_contents(self):
-        """List contents of ZIP file"""
-        zip_path = self.list_zip_path.get()
-        
-        if not zip_path:
-            messagebox.showerror("Error", "Please specify a ZIP file.")
-            return
-            
-        # Clear listbox
-        self.contents_listbox.delete(0, tk.END)
-        
-        try:
-            with zipfile.ZipFile(zip_path, 'r') as zipf:
-                for info in zipf.filelist:
-                    display_text = f"{info.filename:<40} {info.file_size:>10} bytes"
-                    self.contents_listbox.insert(tk.END, display_text)
-        except Exception as e:
-            messagebox.showerror("Error", f"Error reading ZIP file: {str(e)}")
+        self.create_zip_worker = CreateZipWorker(self.create_output_path, self.create_sources, self.create_archive_format)
+        self.create_zip_worker_thread = QThread()
+        self.create_zip_worker.moveToThread(self.create_zip_worker_thread)
+
+        self.create_zip_worker.finished.connect(self.on_create_archive_finished)
+        self.create_zip_worker.progress_updated.connect(self.update_create_progress)
+        self.create_zip_worker.conversion_error.connect(self.on_create_archive_error)
+        self.create_zip_worker_thread.started.connect(self.create_zip_worker.run)
+        self.create_zip_worker_thread.start()
+
+    def on_create_archive_finished(self):
+        if self.create_zip_worker_thread and self.create_zip_worker_thread.isRunning():
+            self.create_zip_worker_thread.quit()
+            self.create_zip_worker_thread.wait()
+        QMessageBox.information(self, "Success", "Archive created successfully!")
+
+    def on_create_archive_error(self, error_message):
+        if self.create_zip_worker_thread and self.create_zip_worker_thread.isRunning():
+            self.create_zip_worker_thread.quit()
+            self.create_zip_worker_thread.wait()
+        QMessageBox.critical(self, "Error", f"Error creating archive: {str(error_message)}")
+        self.create_progress_label.setText("Archive creation failed.")
 
 
-def main():
-    root = tk.Tk()
-    app = ZipGUI(root)
-    root.mainloop()
+    def browse_extract_archive(self):
+        file_dialog = QFileDialog(self)
+        wildcard_parts = [f"{fmt.upper()} files (*.{fmt})" for fmt in SUPPORTED_ARCHIVE_FORMATS]
+        wildcard = ";;".join(wildcard_parts) + ";;All files (*.*)"
+        file_dialog.setNameFilter(wildcard)
+        file_dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        if file_dialog.exec():
+            self.extract_zip_path = file_dialog.selectedFiles()[0]
+            self.extract_zip_text.setText(self.extract_zip_path)
+
+    def browse_extract_dest(self):
+        dir_dialog = QFileDialog(self)
+        dir_dialog.setFileMode(QFileDialog.FileMode.Directory)
+        dir_dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        if dir_dialog.exec():
+            self.extract_dest_path = dir_dialog.selectedFiles()[0]
+            self.extract_dest_text.setText(self.extract_dest_path)
+
+    def update_extract_progress(self, message, progress):
+        self.extract_progress_label.setText(message)
+        if progress >= 0:
+            self.extract_progress.setValue(int(progress))
+
+    def start_extract_archive(self):
+        if not self.extract_zip_path:
+            QMessageBox.critical(self, "Error", "Please specify an archive file to extract.")
+            return
+        if not self.extract_dest_path:
+            QMessageBox.critical(self, "Error", "Please specify a destination folder.")
+            return
+
+        self.extract_progress_label.setText("Starting archive extraction...")
+        self.extract_progress.setValue(0)
+
+        self.extract_zip_worker = ExtractZipWorker(self.extract_zip_path, self.extract_dest_path)
+        self.extract_zip_worker_thread = QThread()
+        self.extract_zip_worker.moveToThread(self.extract_zip_worker_thread)
+
+        self.extract_zip_worker.finished.connect(self.on_extract_archive_finished)
+        self.extract_zip_worker.progress_updated.connect(self.update_extract_progress)
+        self.extract_zip_worker.conversion_error.connect(self.on_extract_archive_error)
+        self.extract_zip_worker_thread.started.connect(self.extract_zip_worker.run)
+        self.extract_zip_worker_thread.start()
+
+    def on_extract_archive_finished(self):
+        if self.extract_zip_worker_thread and self.extract_zip_worker_thread.isRunning():
+            self.extract_zip_worker_thread.quit()
+            self.extract_zip_worker_thread.wait()
+        QMessageBox.information(self, "Success", "Archive extracted successfully!")
+
+    def on_extract_archive_error(self, error_message):
+        if self.extract_zip_worker_thread and self.extract_zip_worker_thread.isRunning():
+            self.extract_zip_worker_thread.quit()
+            self.extract_zip_worker_thread.wait()
+        QMessageBox.critical(self, "Error", f"Error extracting archive: {str(error_message)}")
+        self.extract_progress_label.setText("Archive extraction failed.")
+
+
+    def browse_add_archive(self):
+        file_dialog = QFileDialog(self)
+        wildcard_parts = [f"{fmt.upper()} files (*.{fmt})" for fmt in SUPPORTED_ARCHIVE_FORMATS]
+        wildcard = ";;".join(wildcard_parts) + ";;All files (*.*)"
+        file_dialog.setNameFilter(wildcard)
+        file_dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        if file_dialog.exec():
+            self.add_zip_path = file_dialog.selectedFiles()[0]
+            self.add_zip_text.setText(self.add_zip_path)
+
+    def browse_add_file(self):
+        file_dialog = QFileDialog(self)
+        file_dialog.setNameFilter("All files (*.*)")
+        file_dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        if file_dialog.exec():
+            self.add_file_path = file_dialog.selectedFiles()[0]
+            self.add_file_text.setText(self.add_file_path)
+
+    def update_add_progress(self, message, progress):
+        self.add_progress_label.setText(message)
+        if progress >= 0:
+            self.add_progress.setValue(int(progress))
+
+    def start_add_to_archive(self):
+        if not self.add_zip_path:
+            QMessageBox.critical(self, "Error", "Please specify an existing archive file to add to.")
+            return
+        if not self.add_file_path:
+            QMessageBox.critical(self, "Error", "Please specify a file to add to the archive.")
+            return
+        archive_format = Path(self.add_zip_path).suffix.lower().lstrip('.')
+        if archive_format == 'rar':
+            QMessageBox.critical(self, "Error", "Adding files to RAR archives is not supported.")
+            return
+
+        self.add_progress_label.setText("Starting archive file addition...")
+        self.add_progress.setValue(0)
+
+        self.add_to_zip_worker = AddToZipWorker(self.add_zip_path, self.add_file_path)
+        self.add_to_zip_worker_thread = QThread()
+        self.add_to_zip_worker.moveToThread(self.add_to_zip_worker_thread)
+
+        self.add_to_zip_worker.finished.connect(self.on_add_to_archive_finished)
+        self.add_to_zip_worker.progress_updated.connect(self.update_add_progress)
+        self.add_to_zip_worker.conversion_error.connect(self.on_add_to_archive_error)
+        self.add_to_zip_worker_thread.started.connect(self.add_to_zip_worker.run)
+        self.add_to_zip_worker_thread.start()
+
+    def on_add_to_archive_finished(self):
+        if self.add_to_zip_worker_thread and self.add_to_zip_worker_thread.isRunning():
+            self.add_to_zip_worker_thread.quit()
+            self.add_to_zip_worker_thread.wait()
+        QMessageBox.information(self, "Success", "File added to archive successfully!")
+
+    def on_add_to_archive_error(self, error_message):
+        if self.add_to_zip_worker_thread and self.add_to_zip_worker_thread.isRunning():
+            self.add_to_zip_worker_thread.quit()
+            self.add_to_zip_worker_thread.wait()
+        QMessageBox.critical(self, "Error", f"Error adding file to archive: {str(error_message)}")
+        self.add_progress_label.setText("Archive file addition failed.")
+
+
+    def browse_list_archive(self):
+        file_dialog = QFileDialog(self)
+        wildcard_parts = [f"{fmt.upper()} files (*.{fmt})" for fmt in SUPPORTED_ARCHIVE_FORMATS]
+        wildcard = ";;".join(wildcard_parts) + ";;All files (*.*)"
+        file_dialog.setNameFilter(wildcard)
+        file_dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        if file_dialog.exec():
+            self.list_zip_path = file_dialog.selectedFiles()[0]
+            self.list_zip_text.setText(self.list_zip_path)
+            self.start_list_archive_contents() # Automatically list contents after selecting file
+
+    def start_list_archive_contents(self):
+        if not self.list_zip_path:
+            QMessageBox.critical(self, "Error", "Please select an archive file to list contents.")
+            return
+
+        self.contents_listbox.clear()
+        self.contents_listbox.addItem("Listing contents...")
+
+        self.list_zip_worker = ListZipContentsWorker(self.list_zip_path)
+        self.list_zip_worker_thread = QThread()
+        self.list_zip_worker.moveToThread(self.list_zip_worker_thread)
+
+        self.list_zip_worker.finished.connect(self.update_contents_list)
+        self.list_zip_worker.conversion_error.connect(self.on_list_archive_error)
+        self.list_zip_worker_thread.started.connect(self.list_zip_worker.run)
+        self.list_zip_worker_thread.start()
+
+    def update_contents_list(self, contents):
+        if self.list_zip_worker_thread and self.list_zip_worker_thread.isRunning():
+            self.list_zip_worker_thread.quit()
+            self.list_zip_worker_thread.wait()
+        self.contents_listbox.clear()
+        if contents:
+            for item in contents:
+                self.contents_listbox.addItem(item)
+            QMessageBox.information(self, "Success", "Archive contents listed successfully!")
+        else:
+            self.contents_listbox.addItem("No contents found or invalid archive.")
+            QMessageBox.warning(self, "Warning", "No contents found or invalid archive.")
+
+
+    def on_list_archive_error(self, error_message):
+        if self.list_zip_worker_thread and self.list_zip_worker_thread.isRunning():
+            self.list_zip_worker_thread.quit()
+            self.list_zip_worker_thread.wait()
+        QMessageBox.critical(self, "Error", f"Error listing archive contents: {str(error_message)}")
+        self.contents_listbox.clear()
+        self.contents_listbox.addItem("Error listing contents.")
+
+
+class ZipAppRunner: # Renamed to avoid conflict with QApp
+    def __init__(self):
+        self.app = QApplication(sys.argv)
+        self.window = ZipGUI(initial_dark_mode=self.app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5)
+        self.window.show()
+        self.app.paletteChanged.connect(lambda: self.window._apply_system_theme(self.app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5))
+
+    def MainLoop(self):
+        sys.exit(self.app.exec())
 
 
 if __name__ == "__main__":
-    main()
+    app_runner = ZipAppRunner()
+    app_runner.MainLoop() 

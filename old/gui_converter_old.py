@@ -139,7 +139,7 @@ class ICNSConverterGUI:
         self.root.rowconfigure(0, weight=1)
         
     def create_success_view(self):
-        """Create the success view with success.icns display and return button"""
+        """Create the success view with AppIcon.icns display and return button"""
         success_frame = self.success_frame
         
         # Title
@@ -151,7 +151,7 @@ class ICNSConverterGUI:
         self.success_image_label = ttk.Label(success_frame)
         self.success_image_label.grid(row=1, column=0, pady=20)
         
-        # Load and display success.icns if available
+        # Load and display AppIcon.icns if available
         self.load_success_image()
         
         # Success message
@@ -169,12 +169,12 @@ class ICNSConverterGUI:
         success_frame.rowconfigure(1, weight=1)
         
     def load_success_image(self):
-        """Load and display the success.icns image"""
-        success_icns_path = os.path.join(os.path.dirname(__file__), "support", "Success.icns")
-        if os.path.exists(success_icns_path):
+        """Load and display the AppIcon.icns image"""
+        AppIcon.icns_path = os.path.join(os.path.dirname(__file__),"AppIcon.icns")
+        if os.path.exists(AppIcon.icns_path):
             try:
                 # Load and resize image for display
-                img = Image.open(success_icns_path)
+                img = Image.open(AppIcon.icns_path)
                 img.thumbnail((128, 128))  # Resize for display
                 photo = ImageTk.PhotoImage(img)
                 self.success_image_label.configure(image=photo)

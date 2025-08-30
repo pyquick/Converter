@@ -1,3 +1,5 @@
 Pillow>=8.0.0
-Nuitka>=1.0.0
-wxPython
+Nuitka>=2.7.0
+PySide6
+rarfile
+py7zr

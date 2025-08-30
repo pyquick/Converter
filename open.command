@@ -12,9 +12,9 @@ cd "$SCRIPT_DIR"
 # Check if requirements.txt exists and install dependencies if needed
 if [ -f "requirements.txt" ]; then
     echo "Checking dependencies..."
-    python3 -c "import PIL" 2>/dev/null || {
+    python3.13 -c "import PIL" 2>/dev/null || {
         echo "Installing required dependencies..."
-        pip3 install -r requirements.txt
+        pip3.13 install -r requirements.txt
     }
 fi
 
@@ -22,7 +22,7 @@ fi
 echo "Starting PNG to ICNS Converter..."
 echo ""
 
-python3 gui_converter.py
+python3.13 launcher.py
 
 # Check if the command was successful
 if [ $? -eq 0 ]; then
@@ -30,7 +30,7 @@ if [ $? -eq 0 ]; then
 else
     echo "Application failed to start."
     echo "Please make sure you have Python 3 and Pillow installed:"
-    echo "pip3 install Pillow"
+    echo "pip3 install -r requirements.txt"
     echo ""
     echo "Press any key to exit..."
     read -n 1 -s
