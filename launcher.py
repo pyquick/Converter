@@ -2,6 +2,7 @@ from concurrent.futures import thread
 import sys
 import os
 import threading
+import time
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -17,7 +18,7 @@ from PySide6.QtWidgets import (
     QGroupBox # For update settings group
 )
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QPalette
-from PySide6.QtCore import QSize, Qt, QSettings, QPropertyAnimation, QEasingCurve # Import QPropertyAnimation and QEasingCurve for animations
+from PySide6.QtCore import QSize, Qt, QSettings, QPropertyAnimation, QEasingCurve, QMetaObject, Q_ARG, Signal, Slot # Import QPropertyAnimation and QEasingCurve for animations
 import multiprocessing
 
 from qfluentwidgets import Theme, setTheme # Keep for freeze_support, but remove direct Process usage
@@ -247,7 +248,7 @@ class IconButtonsWindow(QWidget):
     def show_settings(self):
         settings_dialog = SettingsDialog(self)
         self._settings_dialog = settings_dialog  # 保存对话框引用
-        settings_dialog.exec() # Use exec() for modal dialog
+        settings_dialog.show() # 使用show()而不是exec()，保持对话框非模态
 
 def run_zip():
     from zip_gui import ZipAppRunner
@@ -266,14 +267,22 @@ def run_image_app():
 
 # --- Settings Dialog Class ---
 class SettingsDialog(QDialog):
+    # 定义信号用于线程间通信
+    update_status_signal = Signal(str, bool)
+    
     def __init__(self, parent_window: IconButtonsWindow):
         super().__init__(parent_window)
         self.parent_window = parent_window # Store reference to the main window
         self.setWindowTitle("Settings")
                 #self.setFixedSize(800, 600) # Increased size for better aesthetics and more content
+        
+        # 连接信号
+        self.update_status_signal.connect(self._update_status_label)
+        
         self.init_ui()
         self.load_settings()
         self._apply_theme_from_parent() # Apply theme based on parent's current theme
+        self._connect_settings_signals() # Connect settings signals for real-time saving
 
         # Animation for showing the dialog
         self.animation = QPropertyAnimation(self, b"windowOpacity")
@@ -564,15 +573,16 @@ class SettingsDialog(QDialog):
         # Spacer to push content to top
         main_layout.setRowStretch(2, 1)
 
-        # Apply Button (moved to the bottom, right-aligned)
-        apply_button = QPushButton("Apply Settings")
-        apply_button.setObjectName("settings_apply_button")
-        apply_button.clicked.connect(self.apply_settings)
-
-        apply_button_layout = QHBoxLayout()
-        apply_button_layout.addStretch()
-        apply_button_layout.addWidget(apply_button)
-        main_layout.addLayout(apply_button_layout, 3, 0, 1, 2)
+        # 实时自动保存状态标签
+        self.status_label = QLabel("Settings automatically saved")
+        self.status_label.setObjectName("status_label")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.status_label.setVisible(False)
+        
+        status_layout = QHBoxLayout()
+        status_layout.addStretch()
+        status_layout.addWidget(self.status_label)
+        main_layout.addLayout(status_layout, 3, 0, 1, 2)
 
     def load_settings(self):
         settings = QSettings("MyCompany", "ConverterApp")
@@ -581,16 +591,50 @@ class SettingsDialog(QDialog):
 
 
 
-    def apply_settings(self):
-        settings = QSettings("MyCompany", "ConverterApp")
-        # Theme settings - always System Default
-        settings.setValue("theme", 0)
-        settings.sync() # Ensure settings are written to disk
+    def _connect_settings_signals(self):
+        """连接所有设置控件的信号到实时保存"""
+        # 这里可以添加其他设置控件的信号连接
+        # 例如：self.comboBox.currentIndexChanged.connect(self.save_settings_async)
+        pass
+    
+    @Slot(str, bool)
+    def _update_status_label(self, text, visible):
+        """安全更新状态标签的槽函数"""
+        self.status_label.setText(text)
+        self.status_label.setVisible(visible)
+    
+    def save_settings_async(self):
+        """在独立线程中异步保存设置"""
+        def save_thread():
+            settings = QSettings("MyCompany", "ConverterApp")
+            # Theme settings - always System Default
+            settings.setValue("theme", 0)
+            settings.sync() # Ensure settings are written to disk
+            
+            # 通过信号在主线程中安全更新UI
+            self.update_status_signal.emit("Settings saved", True)
+            
+            # 2秒后隐藏状态标签
+            time.sleep(2)
+            self.update_status_signal.emit("", False)
+        
+        # 启动独立线程执行保存操作
+        thread = threading.Thread(target=save_thread)
+        thread.daemon = True
+        thread.start()
+        
+        # 立即应用主题变更
         if self.parent_window:
-            self.parent_window._apply_system_theme_from_settings() # Reapply theme if it changed
-        self.accept() # Close dialog
+            self.parent_window._apply_system_theme_from_settings()
     
+    def accept(self):
+        """重写accept方法，只保存设置而不关闭对话框"""
+        self.save_settings_async()
     
+    def reject(self):
+        """重写reject方法，保存设置并关闭对话框"""
+        self.save_settings_async()
+        super().reject()
 
 
 if __name__ == "__main__":

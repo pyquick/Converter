@@ -32,7 +32,7 @@ def compile_gui():
         "--macos-create-app-bundle", # Create macOS app bundle
         "--macos-app-icon=" + os.path.join(current_dir,"AppIcon.icns"), # App icon
         "--include-data-file=" + os.path.join(current_dir,"zip.png")+ f"=./zip.png",
-        "--include-data-file=" + os.path.join(current_dir,"update","update_apply.command")+ f"=./update_apply.command",
+        "--include-data-file=" + os.path.join(current_dir,"update","update_apply.command")+ f"=./update/update_apply.command",
         "--include-data-file=" + os.path.join(current_dir,"zipd.png")+ f"=./zipd.png",
         "--include-data-file=" + os.path.join(current_dir,"AppIcon.png")+ f"=./AppIcon.png",
         "--include-data-file=" + os.path.join(current_dir,"AppIcond.png")+ f"=./AppIcond.png",
