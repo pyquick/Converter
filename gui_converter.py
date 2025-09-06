@@ -6,6 +6,7 @@ PNG to ICNS Converter with wxPython GUI
 This script provides a graphical interface for converting PNG images to ICNS format.
 """
 
+import platform
 import sys
 import os
 import threading
@@ -19,6 +20,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap, QIcon, QFont, QImage, QPalette
 from PySide6.QtCore import Qt, QSize, Signal, QObject, QThread
 
+from support.toggle import theme_manager
+from qfluentwidgets import Theme, setTheme, LineEdit, ComboBox, SpinBox, ProgressBar
 # Add the current directory to Python path to import convert module
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from support import convert
@@ -69,349 +72,28 @@ class ConversionWorker(QObject):
 
 class ICNSConverterGUI(QMainWindow):
 
-    # Define QSS for light mode
-    LIGHT_QSS = """
-        QMainWindow {
-            background-color: #f0f2f5;
-            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            font-size: 14px;
-            color: #333333;
-        }
-        QWidget {
-            background-color: #ffffff;
-            color: #333333;
-        }
-        QLabel {
-            color: #333333;
-        }
-        QPushButton {
-            background-color: #4CAF50; /* Green */
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            min-height: 30px;
-        }
-        QPushButton:hover {
-            background-color: #45a049;
-        }
-        QPushButton:pressed {
-            background-color: #3d8b40;
-        }
-        QLineEdit, QComboBox, QSpinBox {
-            border: 1px solid #cccccc;
-            border-radius: 5px;
-            padding: 5px;
-            background-color: #fdfdfd;
-            color: #333333;
-            min-height: 24px; /* Ensure sufficient height */
-        }
-        QComboBox {
-            min-width: 100px; /* Ensure QComboBox itself has enough width */
-            /* Style for the dropdown arrow */
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #cccccc;
-                border-left-style: solid;
-                border-top-right-radius: 5px;
-                border-bottom-right-radius: 5px;
-            }
-            QComboBox::down-arrow {
-                image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-chevron-down'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-                width: 16px;
-                height: 16px;
-            }
-        }
-        QSpinBox::up-button {
-            subcontrol-origin: border;
-            subcontrol-position: top right; /* Position for up button */
-            width: 20px;
-            height: 12px; /* Half height for each button */
-            border-left: 1px solid #cccccc;
-            border-bottom: 1px solid #cccccc;
-            border-top-right-radius: 5px;
-            background-color: #e0e0e0;
-        }
-        QSpinBox::up-button:hover {
-            background-color: #d0d0d0;
-        }
-        QSpinBox::up-button:pressed {
-            background-color: #c0c0c0;
-        }
-        QSpinBox::down-button {
-            subcontrol-origin: border;
-            subcontrol-position: bottom right; /* Position for down button */
-            width: 20px;
-            height: 12px; /* Half height for each button */
-            border-left: 1px solid #cccccc;
-            border-top: 1px solid #cccccc;
-            border-bottom-right-radius: 5px;
-            background-color: #e0e0e0;
-        }
-        QSpinBox::down-button:hover {
-            background-color: #d0d0d0;
-        }
-        QSpinBox::down-button:pressed {
-            background-color: #c0c0c0;
-        }
-        QSpinBox::up-arrow {
-            image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-chevron-up'><polyline points='18 15 12 9 6 15'></polyline></svg>");
-            width: 16px;
-            height: 12px; /* Half height for each arrow */
-        }
-        QSpinBox::down-arrow {
-            image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-chevron-down'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-            width: 16px;
-            height: 12px; /* Half height for each arrow */
-        }
-        QGroupBox {
-            font-weight: bold;
-            margin-top: 10px;
-            border: 1px solid #dddddd;
-            border-radius: 8px;
-            padding-top: 20px;
-            background-color: #ffffff;
-            color: #333333;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            padding: 0 5px;
-            margin-left: 5px;
-            color: #333333;
-        }
-        QProgressBar {
-            border: 1px solid #cccccc;
-            border-radius: 5px;
-            text-align: center;
-            background-color: #e0e0e0;
-            color: #333333;
-        }
-        QProgressBar::chunk {
-            background-color: #2196F3; /* Blue */
-            border-radius: 5px;
-        }
-        QTabWidget::pane {
-            border: 1px solid #dddddd;
-            border-radius: 8px;
-            background-color: #ffffff;
-        }
-        QTabBar::tab {
-            background: #e0e0e0;
-            border: 1px solid #dddddd;
-            border-bottom-color: #dddddd; /* same as pane color */
-            border-top-left-radius: 4px;
-            border-top-right-radius: 4px;
-            padding: 8px 15px;
-            margin-right: 2px;
-            color: #555555;
-        }
-        QTabBar::tab:selected {
-            background: #ffffff;
-            border-bottom-color: #ffffff; /* same as pane color */
-            color: #333333;
-        }
-        QTabBar::tab:hover {
-            background-color: #f0f0f0;
-        }
-        QComboBox QAbstractItemView {
-            min-width: 150px; /* Ensure dropdown has enough width */
-            background-color: #fdfdfd;
-            border: 1px solid #cccccc;
-            border-radius: 5px;
-            selection-background-color: #2196F3;
-            selection-color: white;
-            padding: 5px;
-            color: #333333;
-        }
-        #success_message_label {
-            font-size: 16px;
-            font-weight: normal;
-            color: #555555;
-        }
-        #open_converted_file_button, #return_to_converter_button {
-            background-color: #007bff; /* Blue for action buttons */
-        }
-        #open_converted_file_button:hover, #return_to_converter_button:hover {
-            background-color: #0056b3;
-        }
-    """
+    def _load_qss_file(self, filename):
+        """Load QSS content from external file"""
+        qss_path = os.path.join(os.path.dirname(__file__), 'qss', filename)
+        try:
+            with open(qss_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            print(f"Warning: QSS file not found: {qss_path}")
+            return ""
+        except Exception as e:
+            print(f"Error loading QSS file {qss_path}: {e}")
+            return ""
 
-    # Define QSS for dark mode
-    DARK_QSS = """
-        QMainWindow {
-            background-color: #2b2b2b;
-            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            font-size: 14px;
-            color: #e0e0e0;
-        }
-        QWidget {
-            background-color: #3c3c3c;
-            color: #e0e0e0;
-        }
-        QLabel {
-            color: #e0e0e0;
-        }
-        QPushButton {
-            background-color: #4CAF50; /* Green */
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            min-height: 30px;
-        }
-        QPushButton:hover {
-            background-color: #45a049;
-        }
-        QPushButton:pressed {
-            background-color: #3d8b40;
-        }
-        QLineEdit, QComboBox, QSpinBox {
-            border: 1px solid #555555;
-            border-radius: 5px;
-            padding: 5px;
-            background-color: #4c4c4c;
-            color: #e0e0e0;
-            min-height: 24px; /* Ensure sufficient height */
-        }
-        QComboBox {
-            min-width: 100px; /* Ensure QComboBox itself has enough width */
-            /* Style for the dropdown arrow */
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #555555;
-                border-left-style: solid;
-                border-top-right-radius: 5px;
-                border-bottom-right-radius: 5px;
-            }
-            QComboBox::down-arrow {
-                image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-chevron-down'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-                width: 16px;
-                height: 16px;
-            }
-        }
-        QSpinBox::up-button {
-            subcontrol-origin: border;
-            subcontrol-position: top right; /* Position for up button */
-            width: 20px;
-            height: 12px; /* Half height for each button */
-            border-left: 1px solid #555555;
-            border-bottom: 1px solid #555555;
-            border-top-right-radius: 5px;
-            background-color: #4c4c4c;
-        }
-        QSpinBox::up-button:hover {
-            background-color: #5a5a5a;
-        }
-        QSpinBox::up-button:pressed {
-            background-color: #6a6a6a;
-        }
-        QSpinBox::down-button {
-            subcontrol-origin: border;
-            subcontrol-position: bottom right; /* Position for down button */
-            width: 20px;
-            height: 12px; /* Half height for each button */
-            border-left: 1px solid #555555;
-            border-top: 1px solid #555555;
-            border-bottom-right-radius: 5px;
-            background-color: #4c4c4c;
-        }
-        QSpinBox::down-button:hover {
-            background-color: #5a5a5a;
-        }
-        QSpinBox::down-button:pressed {
-            background-color: #6a6a6a;
-        }
-        QSpinBox::up-arrow {
-            image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-chevron-up'><polyline points='18 15 12 9 6 15'></polyline></svg>");
-            width: 16px;
-            height: 12px; /* Half height for each arrow */
-        }
-        QSpinBox::down-arrow {
-            image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-chevron-down'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-            width: 16px;
-            height: 12px; /* Half height for each arrow */
-        }
-        QGroupBox {
-            font-weight: bold;
-            margin-top: 10px;
-            border: 1px solid #555555;
-            border-radius: 8px;
-            padding-top: 20px;
-            background-color: #3c3c3c;
-            color: #e0e0e0;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            padding: 0 5px;
-            margin-left: 5px;
-            color: #e0e0e0;
-        }
-        QProgressBar {
-            border: 1px solid #555555;
-            border-radius: 5px;
-            text-align: center;
-            background-color: #4c4c4c;
-            color: #e0e0e0;
-        }
-        QProgressBar::chunk {
-            background-color: #2196F3; /* Blue */
-            border-radius: 5px;
-        }
-        QTabWidget::pane {
-            border: 1px solid #555555;
-            border-radius: 8px;
-            background-color: #3c3c3c;
-        }
-        QTabBar::tab {
-            background: #4c4c4c;
-            border: 1px solid #555555;
-            border-bottom-color: #555555; /* same as pane color */
-            border-top-left-radius: 4px;
-            border-top-right-radius: 4px;
-            padding: 8px 15px;
-            margin-right: 2px;
-            color: #b0b0b0;
-        }
-        QTabBar::tab:selected {
-            background: #3c3c3c;
-            border-bottom-color: #3c3c3c; /* same as pane color */
-            color: #e0e0e0;
-        }
-        QTabBar::tab:hover {
-            background-color: #404040;
-        }
-        QComboBox QAbstractItemView {
-            min-width: 150px; /* Ensure dropdown has enough width */
-            background-color: #4c4c4c;
-            border: 1px solid #555555;
-            border-radius: 5px;
-            selection-background-color: #2196F3;
-            selection-color: white;
-            padding: 5px;
-            color: #e0e0e0;
-        }
-        #success_message_label {
-            font-size: 16px;
-            font-weight: normal;
-            color: #b0b0b0;
-        }
-        #open_converted_file_button, #return_to_converter_button {
-            background-color: #007bff; /* Blue for action buttons */
-        }
-        #open_converted_file_button:hover, #return_to_converter_button:hover {
-            background-color: #0056b3;
-        }
-    """
+    @property
+    def LIGHT_QSS(self):
+        """Load light theme QSS from external file"""
+        return self._load_qss_file('converter_light.qss')
+
+    @property
+    def DARK_QSS(self):
+        """Load dark theme QSS from external file"""
+        return self._load_qss_file('converter_dark.qss')
 
     def __init__(self, initial_dark_mode=False):
         super().__init__()
@@ -425,6 +107,9 @@ class ICNSConverterGUI(QMainWindow):
 
         # Apply initial theme
         self._apply_theme(initial_dark_mode)
+        
+        # Connect to theme change signal for real-time theme switching
+        self.theme_changed = False
 
     def _apply_theme(self, is_dark_mode):
         if is_dark_mode:
@@ -437,6 +122,10 @@ class ICNSConverterGUI(QMainWindow):
             self.setStyleSheet(self.LIGHT_QSS)
             for spinbox in self.findChildren(QSpinBox):
                 spinbox.setStyleSheet("color: #333333;")
+        
+        # Update success view theme if it exists and is visible
+        if hasattr(self, 'success_widget') and self.success_widget and self.success_widget.isVisible():
+            self._apply_success_theme()
         
     def init_variables(self):
         """初始化或重置所有变量"""
@@ -494,7 +183,7 @@ class ICNSConverterGUI(QMainWindow):
         # Input File Selection (inside merged group box)
         input_layout = QHBoxLayout()
         input_label = QLabel("Input File:")
-        self.input_text = QLineEdit()
+        self.input_text = LineEdit()
         self.input_text.setReadOnly(True)
         input_button = QPushButton("Browse...")
         input_button.clicked.connect(self.on_browse_input)
@@ -507,7 +196,7 @@ class ICNSConverterGUI(QMainWindow):
         # Output File Selection (inside merged group box)
         output_layout = QHBoxLayout()
         output_label = QLabel("Output File:")
-        self.output_text = QLineEdit()
+        self.output_text = LineEdit()
         self.output_text.setReadOnly(True)
         output_button = QPushButton("Browse...")
         output_button.clicked.connect(self.on_browse_output)
@@ -526,7 +215,6 @@ class ICNSConverterGUI(QMainWindow):
         self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setFixedSize(250, 250) # Reduced fixed size for the preview area
-        self.preview_label.setStyleSheet("border: 1px solid #cccccc; background-color: #f8f8f8; border-radius: 5px; color: #777777;")
         self.preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding) # Allow it to expand
         self._set_placeholder_preview()
         preview_group_layout.addWidget(self.preview_label, 1, Qt.AlignmentFlag.AlignCenter)
@@ -561,7 +249,7 @@ class ICNSConverterGUI(QMainWindow):
         # Output Format Selection
         format_layout = QHBoxLayout()
         format_label = QLabel("Output Format:")
-        self.format_combo = QComboBox()
+        self.format_combo = ComboBox()
         self.format_combo.addItems(convert.SUPPORTED_FORMATS)
         self.format_combo.setCurrentText("icns")
         self.format_combo.currentIndexChanged.connect(self.on_format_change)
@@ -573,7 +261,7 @@ class ICNSConverterGUI(QMainWindow):
         # Minimum Size
         min_size_layout = QHBoxLayout()
         min_size_label = QLabel("Minimum Size:")
-        self.min_spin = QSpinBox()
+        self.min_spin = SpinBox()
         self.min_spin.setRange(16, 512)
         self.min_spin.setValue(16)
         self.min_spin.valueChanged.connect(self.on_min_size_change)
@@ -585,7 +273,7 @@ class ICNSConverterGUI(QMainWindow):
         # Maximum Size
         max_size_layout = QHBoxLayout()
         max_size_label = QLabel("Maximum Size:")
-        self.max_spin = QSpinBox()
+        self.max_spin = SpinBox()
         self.max_spin.setRange(32, 1024)
         self.max_spin.setValue(1024)
         self.max_spin.valueChanged.connect(self.on_max_size_change)
@@ -607,7 +295,7 @@ class ICNSConverterGUI(QMainWindow):
 
         self.progress_label = QLabel("Ready")
         self.progress_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.progress = QProgressBar()
+        self.progress = ProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
 
@@ -634,13 +322,35 @@ class ICNSConverterGUI(QMainWindow):
         self.main_layout.addStretch(1)
 
     def create_success_view(self):
-        self.success_widget = QWidget(self.main_widget)
+        # Create success widget as a top-level overlay
+        self.success_widget = QWidget(self)
+        self.success_widget.setObjectName("success_overlay")
+        
+        # Set it to cover the entire window
+        self.success_widget.setGeometry(self.rect())
+        
+        # Create layout for success widget
         self.success_layout = QVBoxLayout(self.success_widget)
-
+        self.success_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create a semi-transparent overlay background
+        overlay = QWidget()
+        overlay.setObjectName("success_overlay")
+        overlay_layout = QVBoxLayout(overlay)
+        overlay_layout.setContentsMargins(0, 0, 0, 0)
+        
         center_panel = QWidget()
+        center_panel.setObjectName("success_center_panel")
         center_layout = QVBoxLayout(center_panel)
         center_layout.setContentsMargins(50, 50, 50, 50) # Increased margins
         center_layout.setSpacing(20)
+        
+        # Add stretch to center the panel vertically
+        overlay_layout.addStretch()
+        overlay_layout.addWidget(center_panel, 0, Qt.AlignmentFlag.AlignCenter)
+        overlay_layout.addStretch()
+        
+        self.success_layout.addWidget(overlay)
 
         center_layout.addStretch()
 
@@ -650,7 +360,7 @@ class ICNSConverterGUI(QMainWindow):
         font.setBold(True)
         title.setFont(font)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("color: #28a745;") # Success green
+        title.setObjectName("success_title_label")
         center_layout.addWidget(title)
 
         checkmark = QLabel("✓")
@@ -658,14 +368,13 @@ class ICNSConverterGUI(QMainWindow):
         checkmark_font.setPointSize(checkmark_font.pointSize() + 30) # Larger checkmark
         checkmark_font.setBold(True)
         checkmark.setFont(checkmark_font)
-        checkmark.setStyleSheet("color: #28a745;")  # Success green
+        checkmark.setObjectName("success_checkmark_label")
         checkmark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         center_layout.addWidget(checkmark)
 
         msg = QLabel(f"Your {self.output_format.upper()} file has been created successfully!")
         msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
         msg.setObjectName("success_message_label") # Object name for QSS
-        msg.setStyleSheet("color: #555555;")
         center_layout.addWidget(msg)
 
         open_btn = QPushButton("Open Converted File")
@@ -682,11 +391,6 @@ class ICNSConverterGUI(QMainWindow):
 
         center_layout.addStretch()
 
-        self.success_layout.addStretch()
-        self.success_layout.addWidget(center_panel, 0, Qt.AlignmentFlag.AlignCenter)
-        self.success_layout.addStretch()
-
-        self.main_layout.addWidget(self.success_widget)
         self.success_widget.hide() # Initially hidden
 
     def _set_placeholder_preview(self):
@@ -708,17 +412,30 @@ class ICNSConverterGUI(QMainWindow):
             self.update_image_info()
             
     def on_browse_output(self):
-        wildcard_map = {
-            "icns": "ICNS files (*.icns)",
-            "jpg": "JPEG files (*.jpg)",
-            "jpeg": "JPEG files (*.jpeg)",
-            "webp": "WebP files (*.webp)",
-            "bmp": "BMP files (*.bmp)",
-            "gif": "GIF files (*.gif)",
-            "tiff": "TIFF files (*.tiff)",
-            "ico": "ICO files (*.ico)",
-            "png": "PNG files (*.png)",
-        }
+        system=platform.system()
+        if "Darwin" in system.lower():
+            wildcard_map = {
+                "icns": "ICNS files (*.icns)",
+                "jpg": "JPEG files (*.jpg)",
+                "jpeg": "JPEG files (*.jpeg)",
+                "webp": "WebP files (*.webp)",
+                "bmp": "BMP files (*.bmp)",
+                "gif": "GIF files (*.gif)",
+                "tiff": "TIFF files (*.tiff)",
+                "ico": "ICO files (*.ico)",
+                "png": "PNG files (*.png)",
+            }
+        else:
+            wildcard_map = {
+                "jpg": "JPEG files (*.jpg)",
+                "jpeg": "JPEG files (*.jpeg)",
+                "webp": "WebP files (*.webp)",
+                "bmp": "BMP files (*.bmp)",
+                "gif": "GIF files (*.gif)",
+                "tiff": "TIFF files (*.tiff)",
+                "ico": "ICO files (*.ico)",
+                "png": "PNG files (*.png)",
+            }
         default_filter = wildcard_map.get(self.output_format, "All files (*.*)")
         
         file_dialog = QFileDialog(self)
@@ -860,15 +577,21 @@ class ICNSConverterGUI(QMainWindow):
             self._thread.quit()
             self._thread.wait()
         QMessageBox.critical(self, "Conversion Failed", error_message)
+
         self.progress_label.setText("Conversion Failed")
 
     def show_success_view(self):
-        # The tab_widget is removed, so we just show the success widget
+        # Update the success widget geometry to match the window
+        self.success_widget.setGeometry(self.rect())
+        # Show the success widget as an overlay
         self.success_widget.show()
+        self.success_widget.raise_()  # Bring to front
         # Update success message based on current output format
         msg_label = self.success_widget.findChild(QLabel, "success_message_label")
         if msg_label:
             msg_label.setText(f"Your {self.output_format.upper()} file has been created successfully!")
+        # Apply theme-specific styles
+        self._apply_success_theme()
 
 
     def on_open_converted_file(self):
@@ -904,7 +627,7 @@ class ICNSConverterGUI(QMainWindow):
         self.progress_label.setText("Ready")
         self.convert_button.setEnabled(True)
         self.status_bar.showMessage("Ready")
-        # The tab_widget is removed, so we just hide the success widget
+        # Hide the success widget
         self.success_widget.hide()
 
             
@@ -917,25 +640,98 @@ class ICNSConverterGUI(QMainWindow):
         cp = self.screen().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
+        
+    def _apply_success_theme(self):
+        """Apply theme-specific styles to success view elements"""
+        # Get current theme from CON
+        try:
+            from support.toggle import CON
+            is_dark_mode = CON.theme_system == "dark"
+        except:
+            # Fallback to system detection if CON is not available
+            app = QApplication.instance()
+            from support.toggle import theme_manager
+            theme_manager.start()
+            if app and hasattr(app, 'palette'):
+                is_dark_mode = app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5
+            else:
+                # Default to light theme if we can't determine
+                is_dark_mode = False
+        
+        # Find all relevant widgets in success view
+        title_label = self.success_widget.findChild(QLabel, "success_title_label")
+        checkmark_label = self.success_widget.findChild(QLabel, "success_checkmark_label")
+        message_label = self.success_widget.findChild(QLabel, "success_message_label")
+        
+        if is_dark_mode:
+            # Dark theme styles
+            if title_label:
+                title_label.setStyleSheet("color: #28a745; font-size: 24px;")
+            if checkmark_label:
+                checkmark_label.setStyleSheet("color: #28a745;")
+            if message_label:
+                message_label.setStyleSheet("color: #aaaaaa; font-size: 16px;")
+        else:
+            # Light theme styles
+            if title_label:
+                title_label.setStyleSheet("color: #28a745; font-size: 24px;")
+            if checkmark_label:
+                checkmark_label.setStyleSheet("color: #28a745;")
+            if message_label:
+                message_label.setStyleSheet("color: #555555; font-size: 16px;")
+        
+    def resizeEvent(self, event):
+        """Handle window resize events to ensure success overlay covers the entire window"""
+        super().resizeEvent(event)
+        # Update the success widget geometry when the window is resized
+        if hasattr(self, 'success_widget') and self.success_widget:
+            self.success_widget.setGeometry(self.rect())
 
 
 class ICNSConverterApp:
     def __init__(self):
         self.app = QApplication(sys.argv)
+        setTheme(Theme.AUTO)
+        app = QApplication.instance()
+        from support.toggle import theme_manager
+        theme_manager.start()
+        if app and hasattr(app, 'palette'):
+            initial_dark_mode = app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5
+        else:
+            # Default to light theme if we can't determine
+            initial_dark_mode = False
         self.window = ICNSConverterGUI(
-            initial_dark_mode=self.app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5
+            initial_dark_mode=initial_dark_mode
         ) # Pass initial dark mode state to GUI
         self.window.show()
 
         # Connect to palette changes for real-time theme switching
-        self.app.paletteChanged.connect(self._on_palette_changed)
+        if app and hasattr(app, 'paletteChanged'):
+            app.paletteChanged.connect(self._on_palette_changed)
 
     def _on_palette_changed(self):
-        is_dark_mode = self.app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5
-        self.window._apply_theme(is_dark_mode)
+        app = QApplication.instance()
+        if app and hasattr(app, 'palette'):
+            is_dark_mode = app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5
+            self.window._apply_theme(is_dark_mode)
+            
+            # Also update success view theme if it's visible
+            if hasattr(self.window, 'success_widget') and self.window.success_widget and self.window.success_widget.isVisible():
+                self.window._apply_success_theme()
+        else:
+            # Fallback to light theme if we can't determine
+            self.window._apply_theme(False)
+            if hasattr(self.window, 'success_widget') and self.window.success_widget and self.window.success_widget.isVisible():
+                self.window._apply_success_theme()
+        
 
     def MainLoop(self):
-        sys.exit(self.app.exec())
+        app = QApplication.instance()
+        if app:
+            sys.exit(app.exec())
+        else:
+            # Fallback exit if app instance is not available
+            sys.exit(1)
 
 
 if __name__ == "__main__":

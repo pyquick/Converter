@@ -11,7 +11,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QIcon, QFont, QPalette
 from PySide6.QtCore import Qt, QSize, Signal, QObject, QThread
+from qfluentwidgets import *
 
+from support.toggle import ThemeManager
 # Add the current directory to Python path to import convertzip module
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from support.archive_manager import create_archive, extract_archive, add_to_archive, list_archive_contents, SUPPORTED_ARCHIVE_FORMATS
@@ -26,6 +28,7 @@ class CreateZipWorker(QObject):
     def __init__(self, output_path, sources, archive_format):
         super().__init__()
         self.output_path = output_path
+        
         self.sources = sources
         self.archive_format = archive_format
 
@@ -100,197 +103,29 @@ class ListZipContentsWorker(QObject):
 
 
 class ZipGUI(QMainWindow):
-    # Define QSS for light mode
-    LIGHT_QSS = """
-        QMainWindow {
-            background-color: #f0f2f5;
-            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            font-size: 14px;
-            color: #333333;
-        }
-        QWidget {
-            background-color: #ffffff;
-            color: #333333;
-        }
-        QLabel {
-            color: #333333;
-        }
-        QPushButton {
-            background-color: #4CAF50; /* Green */
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            min-height: 30px;
-        }
-        QPushButton:hover {
-            background-color: #45a049;
-        }
-        QPushButton:pressed {
-            background-color: #3d8b40;
-        }
-        QLineEdit, QComboBox, QSpinBox {
-            border: 1px solid #cccccc;
-            border-radius: 5px;
-            padding: 5px;
-            background-color: #fdfdfd;
-            color: #333333;
-            min-height: 24px;
-        }
-        QListWidget {
-            border: 1px solid #cccccc;
-            border-radius: 5px;
-            background-color: #fdfdfd;
-            color: #333333;
-        }
-        QGroupBox {
-            font-weight: bold;
-            margin-top: 10px;
-            border: 1px solid #dddddd;
-            border-radius: 8px;
-            padding-top: 20px;
-            background-color: #ffffff;
-            color: #333333;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            padding: 0 5px;
-            margin-left: 5px;
-            color: #333333;
-        }
-        QProgressBar {
-            border: 1px solid #cccccc;
-            border-radius: 5px;
-            text-align: center;
-            background-color: #e0e0e0;
-            color: #333333;
-        }
-        QProgressBar::chunk {
-            background-color: #2196F3; /* Blue */
-            border-radius: 5px;
-        }
-        QTabWidget::pane {
-            border: 1px solid #dddddd;
-            border-radius: 8px;
-            background-color: #ffffff;
-        }
-        QTabBar::tab {
-            background: #e0e0e0;
-            border: 1px solid #dddddd;
-            border-bottom-color: #dddddd;
-            border-top-left-radius: 4px;
-            border-top-right-radius: 4px;
-            padding: 8px 15px;
-            margin-right: 2px;
-            color: #555555;
-        }
-        QTabBar::tab:selected {
-            background: #ffffff;
-            border-bottom-color: #ffffff;
-            color: #333333;
-        }
-        QTabBar::tab:hover {
-            background-color: #f0f0f0;
-        }
-    """
 
-    # Define QSS for dark mode
-    DARK_QSS = """
-        QMainWindow {
-            background-color: #2b2b2b;
-            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            font-size: 14px;
-            color: #e0e0e0;
-        }
-        QWidget {
-            background-color: #3c3c3c;
-            color: #e0e0e0;
-        }
-        QLabel {
-            color: #e0e0e0;
-        }
-        QPushButton {
-            background-color: #4CAF50; /* Green */
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            min-height: 30px;
-        }
-        QPushButton:hover {
-            background-color: #45a049;
-        }
-        QPushButton:pressed {
-            background-color: #3d8b40;
-        }
-        QLineEdit, QComboBox, QSpinBox {
-            border: 1px solid #555555;
-            border-radius: 5px;
-            padding: 5px;
-            background-color: #4c4c4c;
-            color: #e0e0e0;
-            min-height: 24px;
-        }
-        QListWidget {
-            border: 1px solid #555555;
-            border-radius: 5px;
-            background-color: #4c4c4c;
-            color: #e0e0e0;
-        }
-        QGroupBox {
-            font-weight: bold;
-            margin-top: 10px;
-            border: 1px solid #555555;
-            border-radius: 8px;
-            padding-top: 20px;
-            background-color: #3c3c3c;
-            color: #e0e0e0;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            padding: 0 5px;
-            margin-left: 5px;
-            color: #e0e0e0;
-        }
-        QProgressBar {
-            border: 1px solid #555555;
-            border-radius: 5px;
-            text-align: center;
-            background-color: #4c4c4c;
-            color: #e0e0e0;
-        }
-        QProgressBar::chunk {
-            background-color: #2196F3; /* Blue */
-            border-radius: 5px;
-        }
-        QTabWidget::pane {
-            border: 1px solid #555555;
-            border-radius: 8px;
-            background-color: #3c3c3c;
-        }
-        QTabBar::tab {
-            background: #4c4c4c;
-            border: 1px solid #555555;
-            border-bottom-color: #555555;
-            border-top-left-radius: 4px;
-            border-top-right-radius: 4px;
-            padding: 8px 15px;
-            margin-right: 2px;
-            color: #b0b0b0;
-        }
-        QTabBar::tab:selected {
-            background: #3c3c3c;
-            border-bottom-color: #3c3c3c;
-            color: #e0e0e0;
-        }
-        QTabBar::tab:hover {
-            background-color: #404040;
-        }
-    """
+    def _load_qss_file(self, filename):
+        """Load QSS content from external file"""
+        qss_path = os.path.join(os.path.dirname(__file__), 'qss', filename)
+        try:
+            with open(qss_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            print(f"Warning: QSS file not found: {qss_path}")
+            return ""
+        except Exception as e:
+            print(f"Error loading QSS file {qss_path}: {e}")
+            return ""
+
+    @property
+    def LIGHT_QSS(self):
+        """Load light theme QSS from external file"""
+        return self._load_qss_file('zip_light.qss')
+
+    @property
+    def DARK_QSS(self):
+        """Load dark theme QSS from external file"""
+        return self._load_qss_file('zip_dark.qss')
 
     def __init__(self, initial_dark_mode=False):
         super().__init__()
@@ -298,11 +133,14 @@ class ZipGUI(QMainWindow):
         self.setGeometry(200, 200, 800, 600)
         self.setMinimumSize(600, 500)
         
+
         self.init_variables()
         self.setup_ui()
         self._apply_theme(initial_dark_mode)
         self.center_window() # Center the window after UI setup
-        
+       
+        setTheme(Theme.AUTO)
+    
     def init_variables(self):
         # Variables for Create ZIP tab
         self.create_sources = []
@@ -369,7 +207,7 @@ class ZipGUI(QMainWindow):
         output_box = QGroupBox("Output Archive File") # Changed group box title
         output_box_sizer = QHBoxLayout(output_box)
         
-        self.create_output_text = QLineEdit()
+        self.create_output_text = LineEdit()
         self.create_output_text.setReadOnly(True)
         output_box_sizer.addWidget(self.create_output_text, 1)
         output_button = QPushButton("Browse...")
@@ -380,7 +218,7 @@ class ZipGUI(QMainWindow):
         # Archive Format Selection (new)
         format_layout = QHBoxLayout()
         format_label = QLabel("Archive Format:")
-        self.create_format_combo = QComboBox()
+        self.create_format_combo = ComboBox()
         # Filter formats to only allow creation of supported types
         self.create_format_combo.addItems([f.upper() for f in SUPPORTED_ARCHIVE_FORMATS if f != 'rar' and f != 'tgz'])
         self.create_format_combo.setCurrentText("ZIP")
@@ -393,9 +231,10 @@ class ZipGUI(QMainWindow):
         sources_box = QGroupBox("Source Files/Directories")
         sources_box_sizer = QVBoxLayout(sources_box)
         
-        self.sources_listbox = QListWidget()
+        self.sources_listbox = ListWidget()
         sources_box_sizer.addWidget(self.sources_listbox, 1)
-
+        # 设置右键点击立即选中
+        
         # Buttons to add/remove sources
         button_sizer = QHBoxLayout()
         add_files_button = QPushButton("Add Files...")
@@ -418,7 +257,7 @@ class ZipGUI(QMainWindow):
         self.create_progress_label = QLabel("")
         tab_sizer.addWidget(self.create_progress_label)
         
-        self.create_progress = QProgressBar()
+        self.create_progress = ProgressBar()
         self.create_progress.setRange(0, 100)
         self.create_progress.setValue(0)
         tab_sizer.addWidget(self.create_progress)
@@ -439,7 +278,7 @@ class ZipGUI(QMainWindow):
         zip_box = QGroupBox("Archive File to Extract")
         zip_box_sizer = QHBoxLayout(zip_box)
 
-        self.extract_zip_text = QLineEdit()
+        self.extract_zip_text = LineEdit()
         self.extract_zip_text.setReadOnly(True)
         zip_box_sizer.addWidget(self.extract_zip_text, 1)
         zip_button = QPushButton("Browse...")
@@ -451,7 +290,7 @@ class ZipGUI(QMainWindow):
         dest_box = QGroupBox("Destination Folder")
         dest_box_sizer = QHBoxLayout(dest_box)
 
-        self.extract_dest_text = QLineEdit()
+        self.extract_dest_text = LineEdit()
         self.extract_dest_text.setReadOnly(True)
         dest_box_sizer.addWidget(self.extract_dest_text, 1)
         dest_button = QPushButton("Browse...")
@@ -463,7 +302,7 @@ class ZipGUI(QMainWindow):
         self.extract_progress_label = QLabel("")
         tab_sizer.addWidget(self.extract_progress_label)
         
-        self.extract_progress = QProgressBar()
+        self.extract_progress = ProgressBar()
         self.extract_progress.setRange(0, 100)
         self.extract_progress.setValue(0)
         tab_sizer.addWidget(self.extract_progress)
@@ -484,7 +323,7 @@ class ZipGUI(QMainWindow):
         zip_box = QGroupBox("Existing Archive File") # Changed group box title
         zip_box_sizer = QHBoxLayout(zip_box)
 
-        self.add_zip_text = QLineEdit()
+        self.add_zip_text = LineEdit()
         self.add_zip_text.setReadOnly(True)
         zip_box_sizer.addWidget(self.add_zip_text, 1)
         zip_button = QPushButton("Browse...")
@@ -496,7 +335,7 @@ class ZipGUI(QMainWindow):
         file_box = QGroupBox("File to Add")
         file_box_sizer = QHBoxLayout(file_box)
 
-        self.add_file_text = QLineEdit()
+        self.add_file_text = LineEdit()
         self.add_file_text.setReadOnly(True)
         file_box_sizer.addWidget(self.add_file_text, 1)
         file_button = QPushButton("Browse...")
@@ -508,7 +347,7 @@ class ZipGUI(QMainWindow):
         self.add_progress_label = QLabel("")
         tab_sizer.addWidget(self.add_progress_label)
         
-        self.add_progress = QProgressBar()
+        self.add_progress = ProgressBar()
         self.add_progress.setRange(0, 100)
         self.add_progress.setValue(0)
         tab_sizer.addWidget(self.add_progress)
@@ -528,20 +367,20 @@ class ZipGUI(QMainWindow):
         # Archive file selection (changed title)
         zip_box = QGroupBox("Archive File")
         zip_box_sizer = QHBoxLayout(zip_box)
-
-        self.list_zip_text = QLineEdit()
+        
+        self.list_zip_text = LineEdit()
         self.list_zip_text.setReadOnly(True)
         zip_box_sizer.addWidget(self.list_zip_text, 1)
         zip_button = QPushButton("Browse...")
         zip_button.clicked.connect(self.browse_list_archive) # Changed signal
         zip_box_sizer.addWidget(zip_button)
         tab_sizer.addWidget(zip_box)
-
+        
         # Listbox for contents
         contents_box = QGroupBox("Archive Contents") # Changed group box title
         contents_box_sizer = QVBoxLayout(contents_box)
 
-        self.contents_listbox = QListWidget()
+        self.contents_listbox = ListWidget()
         contents_box_sizer.addWidget(self.contents_listbox, 1)
         tab_sizer.addWidget(contents_box, 1) # Give contents box more stretch
 
@@ -815,7 +654,7 @@ class ZipGUI(QMainWindow):
         self.contents_listbox.clear()
         if contents:
             for item in contents:
-                self.contents_listbox.addItem(item)
+                    self.contents_listbox.addItem(item)
             QMessageBox.information(self, "Success", "Archive contents listed successfully!")
         else:
             self.contents_listbox.addItem("No contents found or invalid archive.")
@@ -834,6 +673,9 @@ class ZipGUI(QMainWindow):
 class ZipAppRunner: # Renamed to avoid conflict with QApp
     def __init__(self):
         self.app = QApplication(sys.argv)
+        from support.toggle import theme_manager
+        theme_manager.start()
+        setTheme(Theme.AUTO)
         self.window = ZipGUI(initial_dark_mode=self.app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5)
         self.window.show()
         self.app.paletteChanged.connect(lambda: self.window._apply_system_theme(self.app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5))
@@ -844,4 +686,4 @@ class ZipAppRunner: # Renamed to avoid conflict with QApp
 
 if __name__ == "__main__":
     app_runner = ZipAppRunner()
-    app_runner.MainLoop() 
+    app_runner.MainLoop()

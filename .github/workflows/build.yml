@@ -29,14 +29,12 @@ jobs:
               if: github.event_name == 'push'
               uses: softprops/action-gh-release@v2
               with:
-                tag_name: 2.0.0B1
-                name: 2.0.0 Beta 1
+                tag_name: 2.0.0B2
+                name: 2.0.0 Beta 2
                 body: ${{ github.event.head_commit.message }}
                 prerelease: true
                 files: |
                     ./dist/Converter_arm64_darwin.zip
-                    ./dist/convert.bin
-                    ./dist/convertzip.bin
     build_intel:
         name: Build Intel
         runs-on: macos-13
@@ -59,10 +57,10 @@ jobs:
               if: github.event_name == 'push'
               uses: softprops/action-gh-release@v2
               with:
-                tag_name: 2.0.0B1
-                name: 2.0.0 Beta 1
+                tag_name: 2.0.0B2
+                name: 2.0.0 Beta 2
                 body: ${{ github.event.head_commit.message }}
                 prerelease: true
                 files: |
-                    ./dist/Converter_intel.zip
+                    ./dist/Converter_intel_darwin.zip
                     
