@@ -44,12 +44,12 @@ def compile_gui():
         "--include-package=gui_converter", 
         "--include-package=support",
         "--include-package=update",  # 添加update包以确保所有更新功能正常工作
+        "--include-package=debug",  # 添加update包以确保所有更新功能正常工作
         "--macos-signed-app-name=com.pyquick.converter",
         "--enable-plugin=pyside6",
         "--prefer-source-code",
         "--output-dir=dist",      # Output directory
         "--remove-output", 
-        "--follow-imports",
         # Python 3默认使用UTF-8编码，移除不支持的参数
         main_script
     ]
