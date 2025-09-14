@@ -3,22 +3,27 @@ QMainWindow {
     font-family: 'SF Pro', 'Helvetica Neue', Arial, sans-serif;
     font-size: 14px;
     color: #333333;
+    border-radius: 20px;
 }
 QWidget {
-    background-color: #ffffff;
+    background-color: transparent;
     color: #333333;
+    border-radius: 16px;
 }
 QLabel {
     color: #333333;
+}
+PushButton,ToolButton,PrimaryPushButton,PrimaryToolButton{
+    border-radius: 16px
 }
 QPushButton {
     background-color: #4CAF50; /* Green */
     color: white;
     border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
+    padding: 12px 24px;
+    border-radius: 18px;
     font-weight: bold;
-    min-height: 30px;
+    min-height: 36px;
 }
 QPushButton:hover {
     background-color: #45a049;
@@ -26,64 +31,24 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: #3d8b40;
 }
-QLineEdit, QComboBox, QSpinBox {
-    border: 1px solid #cccccc;
-    border-radius: 5px;
-    padding: 5px;
-    background-color: #fdfdfd;
+QLineEdit, QComboBox{
+    border: none;
+    border-radius: 16px;
+    padding: 8px 12px;
+    background-color: rgba(255, 255, 255, 0.7);
     color: #333333;
-    min-height: 24px; /* Ensure sufficient height */
-}
-QSpinBox::up-button {
-    subcontrol-origin: border;
-    subcontrol-position: top right; /* Position for up button */
-    width: 20px;
-    height: 12px; /* Half height for each button */
-    border-left: 1px solid #cccccc;
-    border-bottom: 1px solid #cccccc;
-    border-top-right-radius: 5px;
-    background-color: #e0e0e0;
-}
-QSpinBox::up-button:hover {
-    background-color: #d0d0d0;
-}
-QSpinBox::up-button:pressed {
-    background-color: #c0c0c0;
-}
-QSpinBox::down-button {
-    subcontrol-origin: border;
-    subcontrol-position: bottom right; /* Position for down button */
-    width: 20px;
-    height: 12px; /* Half height for each button */
-    border-left: 1px solid #cccccc;
-    border-top: 1px solid #cccccc;
-    border-bottom-right-radius: 5px;
-    background-color: #e0e0e0;
-}
-QSpinBox::down-button:hover {
-    background-color: #d0d0d0;
-}
-QSpinBox::down-button:pressed {
-    background-color: #c0c0c0;
-}
-QSpinBox::up-arrow {
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-chevron-up'><polyline points='18 15 12 9 6 15'></polyline></svg>");
-    width: 16px;
-    height: 12px; /* Half height for each arrow */
-}
-QSpinBox::down-arrow {
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='#333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-chevron-down'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-    width: 16px;
-    height: 12px; /* Half height for each arrow */
+    min-height: 28px; /* Ensure sufficient height */
+    backdrop-filter: blur(10px);
 }
 QGroupBox {
     font-weight: bold;
-    margin-top: 10px;
-    border: 1px solid #dddddd;
-    border-radius: 8px;
-    padding-top: 20px;
-    background-color: #ffffff;
+    margin-top: 15px;
+    border: none;
+    border-radius: 20px;
+    padding-top: 25px;
+    background-color: rgba(255, 255, 255, 0.5);
     color: #333333;
+    backdrop-filter: blur(15px);
 }
 QGroupBox::title {
     subcontrol-origin: margin;
@@ -93,35 +58,36 @@ QGroupBox::title {
     color: #333333;
 }
 QProgressBar {
-    border: 1px solid #cccccc;
-    border-radius: 5px;
+    border: none;
+    border-radius: 12px;
     text-align: center;
-    background-color: #e0e0e0;
+    background-color: rgba(224, 224, 224, 0.6);
     color: #333333;
+    backdrop-filter: blur(8px);
 }
 QProgressBar::chunk {
     background-color: #2196F3; /* Blue */
-    border-radius: 5px;
+    border-radius: 12px;
 }
 QTabWidget::pane {
-    border: 1px solid #dddddd;
-    border-radius: 8px;
-    background-color: #ffffff;
+    border: none;
+    border-radius: 20px;
+    background-color: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(15px);
 }
 QTabBar::tab {
-    background: #e0e0e0;
-    border: 1px solid #dddddd;
-    border-bottom-color: #dddddd; /* same as pane color */
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-    padding: 8px 15px;
-    margin-right: 2px;
+    background: rgba(224, 224, 224, 0.6);
+    border: none;
+    border-radius: 16px 16px 0px 0px;
+    padding: 12px 20px;
+    margin-right: 4px;
     color: #555555;
+    backdrop-filter: blur(10px);
 }
 QTabBar::tab:selected {
-    background: #ffffff;
-    border-bottom-color: #ffffff; /* same as pane color */
+    background: rgba(255, 255, 255, 0.8);
     color: #333333;
+    backdrop-filter: blur(15px);
 }
 QTabBar::tab:hover {
     background-color: #f0f0f0;

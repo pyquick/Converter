@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+
 from concurrent.futures import thread
+from importlib import reload
 import sys
 import os
 import threading
@@ -15,16 +18,18 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QDialog, # Import QDialog for settings window
     QComboBox, # For theme selection dropdown
-    QGroupBox # For update settings group
+    QGroupBox, # For update settings group
+    QTabWidget, # For tabbed settings interface
+    QStackedWidget # For segmented widget interface
 )
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QPalette
 from PySide6.QtCore import QSize, Qt, QSettings, QPropertyAnimation, QEasingCurve, QMetaObject, Q_ARG, Signal, Slot # Import QPropertyAnimation and QEasingCurve for animations
 import multiprocessing
-
-from qfluentwidgets import Theme, setTheme # Keep for freeze_support, but remove direct Process usage
-from update.update_gui import UpdateDialog
+from qfluentwidgets import Theme, setTheme, CheckBox, SegmentedWidget
+ # Keep for freeze_support, but remove direct Process usage
+from settings.update_settings_gui import UpdateDialog
 from con import CON # Import CON instance for theme settings
-
+# Encoding settings have been moved to debug_logger for handling
 # --- Helper function to create placeholder icons ---
 # Since we cannot directly generate .icns files, we create PNG files as examples.
 # Please place the AppIcon.icns and zip.icns files in the same directory as this script.
@@ -147,12 +152,12 @@ class IconButtonsWindow(QWidget):
             if hasattr(self, 'button_app'):
                 self.button_app.setIcon(QIcon(self.app_icon_path))
         
-        # 通知所有子控件更新主题
+        # Notify all sub-widgets to update theme
         self.update_sub_widgets_theme(is_dark_mode)
     
     def update_sub_widgets_theme(self, is_dark_mode):
-        """通知所有子控件更新主题"""
-        # 更新设置对话框的主题（如果已创建）
+        """Notify all sub-widgets to update theme"""
+        # Update settings dialog theme (if already created)
         if hasattr(self, '_settings_dialog') and self._settings_dialog:
             self._settings_dialog.apply_theme(is_dark_mode)
     
@@ -180,7 +185,7 @@ class IconButtonsWindow(QWidget):
 
         # --- Button 2: zip.icns ---
         zip_icon = QIcon(self.zip_icon_path)
-        self.button_zip = QPushButton(" Zip Converter")  # Removed extra space
+        self.button_zip = QPushButton(" Archive Converter")  # Removed extra space
         self.button_zip.setObjectName("button_zip")
         self.button_zip.setIcon(zip_icon)
         self.button_zip.setIconSize(QSize(72,72))  # Increased icon size
@@ -220,7 +225,7 @@ class IconButtonsWindow(QWidget):
                 text-align: center;
                 font-size: 15px;
                 margin: 6px 0;
-                border-radius: 6px;
+                border-radius: 16px;
                 font-weight: bold;
    
    
@@ -247,8 +252,8 @@ class IconButtonsWindow(QWidget):
 
     def show_settings(self):
         settings_dialog = SettingsDialog(self)
-        self._settings_dialog = settings_dialog  # 保存对话框引用
-        settings_dialog.show() # 使用show()而不是exec()，保持对话框非模态
+        self._settings_dialog = settings_dialog  # Save dialog reference
+        settings_dialog.show() # Use show() instead of exec() to keep dialog non-modal
 
 def run_zip():
     from zip_gui import ZipAppRunner
@@ -267,7 +272,7 @@ def run_image_app():
 
 # --- Settings Dialog Class ---
 class SettingsDialog(QDialog):
-    # 定义信号用于线程间通信
+    # Define signal for inter-thread communication
     update_status_signal = Signal(str, bool)
     
     def __init__(self, parent_window: IconButtonsWindow):
@@ -276,7 +281,7 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings")
                 #self.setFixedSize(800, 600) # Increased size for better aesthetics and more content
         
-        # 连接信号
+        # Connect signals
         self.update_status_signal.connect(self._update_status_label)
         
         self.init_ui()
@@ -298,282 +303,111 @@ class SettingsDialog(QDialog):
 
     def _apply_theme_from_parent(self):
         if self.parent_window:
-            # 获取父窗口的主题设置，而不是根据系统palette判断
+            # Get parent window's theme setting instead of judging by system palette
             theme_setting = self.parent_window.settings.value("theme", 0, type=int)
             if theme_setting == 0: # System Default
-                # 只有当选择系统默认时才使用系统palette
+                # Only use system palette when System Default is selected
                 is_dark_mode = self.parent_window.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5
                 self.apply_theme(is_dark_mode)
             elif theme_setting == 1: # Light Mode
                 self.apply_theme(False)
             else: # Dark Mode
                 self.apply_theme(True)
+    def _load_settings_qss_file(self, filename):
+        """Load QSS content from external settings file"""
+        qss_path = os.path.join(os.path.dirname(__file__), 'qss', filename)
+        try:
+            with open(qss_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            print(f"Warning: Settings QSS file not found: {qss_path}")
+            return ""
+        except Exception as e:
+            print(f"Error loading settings QSS file {qss_path}: {e}")
+            return ""
+
+    @property
+    def SETTINGS_LIGHT_QSS(self):
+        """Load light theme QSS from external file"""
+        return self._load_settings_qss_file('settings_light.qss')
+
+    @property
+    def SETTINGS_DARK_QSS(self):
+        """Load dark theme QSS from external file"""
+        return self._load_settings_qss_file('settings_dark.qss')
+
     def apply_theme(self, is_dark_mode):
         if is_dark_mode:
-            self.setStyleSheet("""
-                QDialog {
-                    background-color: #2b2b2b;
-                    color: #e0e0e0;
-                    font-family: Arial, sans-serif;
-                }
-                QLabel {
-                    color: #e0e0e0;
-                }
-
-
-                QPushButton {
-                    background-color: #2196F3;
-                    border: 1px solid #1976D2; /* Added border */
-                    color: white;
-                    padding: 8px 15px;
-                    border-radius: 5px;
-                    font-weight: bold;
-                    font-size: 13px;
-           
-                }
-                QPushButton:hover {
-                    background-color: #1976D2;
-                }
-                QPushButton:pressed {
-                    background-color: #0D47A1;
-           
-                }
-                
-                QComboBox {
-                    border: 1px solid #555555;
-                    border-radius: 4px;
-                    padding: 6px 10px 6px 10px;
-                    background-color: #2d2d2d;
-                    color: #ffffff;
-                    selection-background-color: #4a90e2;
-                    selection-color: #ffffff;
-                }
-                QComboBox:editable {
-                    background-color: #2d2d2d;
-                }
-                QComboBox:!editable, QComboBox::drop-down:editable {
-                    background-color: #2d2d2d;
-                }
-                QComboBox:!editable:on, QComboBox::drop-down:editable:on {
-                    background-color: #2d2d2d;
-                }
-                QComboBox:on {
-                    background-color: #2d2d2d;
-                }
-                QComboBox::drop-down {
-                    subcontrol-origin: padding;
-                    subcontrol-position: top right;
-                    width: 20px;
-                    border-left-width: 1px;
-                    border-left-color: #555555;
-                    border-left-style: solid;
-                    border-top-right-radius: 4px;
-                    border-bottom-right-radius: 4px;
-                    background-color: #2d2d2d;
-                }
-                QComboBox::down-arrow {
-                    image: url(down_arrow_dark.svg);
-                    width: 12px;
-                    height: 12px;
-                }
-                QComboBox::down-arrow:on {
-                    image: url(down_arrow_dark.svg);
-                }
-                QComboBox QAbstractItemView {
-                    border: 1px solid #555555;
-                    border-radius: 4px;
-                    background-color: #2d2d2d;
-                    color: #ffffff;
-                    selection-background-color: #4a90e2;
-                    selection-color: #ffffff;
-                    outline: 0px;
-                }
-                QComboBox QAbstractItemView::item {
-                    padding: 4px 10px;
-                    border-radius: 2px;
-                }
-                QComboBox QAbstractItemView::item:selected {
-                    background-color: #4a90e2;
-                    color: #ffffff;
-                }
-                QComboBox QAbstractItemView::item:hover {
-                    background-color: #3a3a3a;
-                }
-            """)
+            self.setStyleSheet(self.SETTINGS_DARK_QSS)
         else:
-            self.setStyleSheet("""
-                QDialog {
-                    background-color: #f0f0f0;
-                    color: #333;
-                    font-family: Arial, sans-serif;
-                }
-                QLabel {
-                    color: #333;
-                }
-
-
-
-                QPushButton {
-                    background-color: #2196F3;
-                    border: 1px solid #1976D2; /* Added border */
-                    color: white;
-                    padding: 8px 15px;
-                    border-radius: 5px;
-                    font-weight: bold;
-                    font-size: 13px;
-           
-                }
-                QPushButton:hover {
-                    background-color: #1976D2;
-                }
-                QPushButton:pressed {
-                    background-color: #0D47A1;
-           
-                }
-                
-                QComboBox {
-                    border: 1px solid #cccccc;
-                    border-radius: 4px;
-                    padding: 6px 10px 6px 10px;
-                    background-color: #ffffff;
-                    color: #000000;
-                    selection-background-color: #4a90e2;
-                    selection-color: #ffffff;
-                }
-                QComboBox:editable {
-                    background-color: #ffffff;
-                }
-                QComboBox:!editable, QComboBox::drop-down:editable {
-                    background-color: #ffffff;
-                }
-                QComboBox:!editable:on, QComboBox::drop-down:editable:on {
-                    background-color: #ffffff;
-                }
-                QComboBox:on {
-                    background-color: #ffffff;
-                }
-                QComboBox::drop-down {
-                    subcontrol-origin: padding;
-                    subcontrol-position: top right;
-                    width: 20px;
-                    border-left-width: 1px;
-                    border-left-color: #cccccc;
-                    border-left-style: solid;
-                    border-top-right-radius: 4px;
-                    border-bottom-right-radius: 4px;
-                    background-color: #ffffff;
-                }
-                QComboBox::down-arrow {
-                    image: url(down_arrow.svg);
-                    width: 12px;
-                    height: 12px;
-                }
-                QComboBox::down-arrow:on {
-                    image: url(down_arrow.svg);
-                }
-                QComboBox QAbstractItemView {
-                    border: 1px solid #cccccc;
-                    border-radius: 4px;
-                    background-color: #ffffff;
-                    color: #000000;
-                    selection-background-color: #4a90e2;
-                    selection-color: #ffffff;
-                    outline: 0px;
-                }
-                QComboBox QAbstractItemView::item {
-                    padding: 4px 10px;
-                    border-radius: 2px;
-                }
-                QComboBox QAbstractItemView::item:selected {
-                    background-color: #4a90e2;
-                    color: #ffffff;
-                }
-                QComboBox QAbstractItemView::item:hover {
-                    background-color: palette(alternate-base);
-                }
-                QPushButton {
-                    background-color: #2196F3;
-                    border: 1px solid #1976D2; /* Added border */
-                    color: white;
-                    padding: 8px 15px;
-                    border-radius: 5px;
-                    font-weight: bold;
-                    font-size: 13px;
-           
-                }
-                QPushButton:hover {
-                    background-color: #1976D2;
-                }
-                QPushButton:pressed {
-                    background-color: #0D47A1;
-           
-                }
-                
-                QGroupBox {
-                    font-weight: bold;
-                    margin-top: 10px;
-                    border: 1px solid #ccc;
-                    border-radius: 5px;
-                    background-color: #ffffff;
-                }
-                QGroupBox::title {
-                    subcontrol-origin: margin;
-                    subcontrol-position: top left; /* Position at top left */
-                    padding: 0 5px;
-                    color: #333; /* Title color */
-                }
-                #status_label {
-                    color: #555;
-                    font-size: 12px;
-                    font-style: italic;
-                }
-                #settings_apply_button {
-                    background-color: #4CAF50; /* Green for apply button */
-                    border: 1px solid #388E3C; /* Added border */
-           
-                }
-                #settings_apply_button:hover {
-                    background-color: #43A047;
-                }
-                #settings_apply_button:pressed {
-                    background-color: #2E7D32;
-           
-                }
-                
-                /* Update Button Styles */
-                QPushButton#settings_button {
-                    background-color: #2196F3; /* Blue */
-                    border: none;
-                    color: white;
-                    padding: 12px 15px;
-                    border-radius: 10px;
-                    font-weight: bold;
-                    font-size: 14px;
-                    text-align: center;
-                }
-                QPushButton#settings_button:hover {
-                    background-color: #1976D2;
-                }
-                QPushButton#settings_button:pressed {
-                    background-color: #0D47A1;
-                }
-            """)
+            self.setStyleSheet(self.SETTINGS_LIGHT_QSS)
 
     def init_ui(self):
         
-        main_layout = QGridLayout(self)
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
 
+        # Create SegmentedWidget and QStackedWidget
+        self.segmented_widget = SegmentedWidget(self)
+        self.stacked_widget = QStackedWidget(self)
+        
+        # Debug page
+        debug_page = QWidget()
+        debug_layout = QVBoxLayout(debug_page)
+        debug_layout.setContentsMargins(15, 15, 15, 15)
+        debug_layout.setSpacing(15)
+        
+        from debug.debug_gui import DebugSettingsWidget
+        self.debug_widget = DebugSettingsWidget()
+        self.debug_widget.setObjectName("debug_widget")
+        debug_layout.addWidget(self.debug_widget)
+        debug_layout.addStretch()
+        
+        self.stacked_widget.addWidget(debug_page)
+        
+        # Update page
+        update_page = QWidget()
+        update_layout = QVBoxLayout(update_page)
+        update_layout.setContentsMargins(15, 15, 15, 15)
+        update_layout.setSpacing(15)
+        
+        self.update_group = UpdateDialog()
+        self.update_group.setObjectName("update_group")
+        update_layout.addWidget(self.update_group)
+        update_layout.addStretch()
+        
+        self.stacked_widget.addWidget(update_page)
+        
+        # Image Converter page
+        image_converter_page = QWidget()
+        image_converter_layout = QVBoxLayout(image_converter_page)
+        image_converter_layout.setContentsMargins(15, 15, 15, 15)
+        image_converter_layout.setSpacing(15)
+        
+        from settings.image_converter_settings import ImageConverterSettingsWidget
+        self.image_converter_widget = ImageConverterSettingsWidget()
+        self.image_converter_widget.setObjectName("image_converter_widget")
+        image_converter_layout.addWidget(self.image_converter_widget)
+        image_converter_layout.addStretch()
+        
+        self.stacked_widget.addWidget(image_converter_page)
+        
+        # Add tab items
+        self.add_sub_interface(debug_page, "debug_page", "Debug")
+        self.add_sub_interface(update_page, "update_page", "Update")
+        self.add_sub_interface(image_converter_page, "image_converter_page", "Image Converter")
+        
+        # Connect signals and initialize current page
+        self.stacked_widget.currentChanged.connect(self.on_current_index_changed)
+        self.stacked_widget.setCurrentIndex(0)
+        self.segmented_widget.setCurrentItem("debug_page")
+        
+        # Add to main layout
+        main_layout.addWidget(self.segmented_widget, 0, Qt.AlignmentFlag.AlignHCenter)
+        main_layout.addWidget(self.stacked_widget)
 
-
-        update_group=UpdateDialog()
-        update_group.setObjectName("update_group")
-        main_layout.addWidget(update_group, 1, 0, 1, 2)
-        # Spacer to push content to top
-        main_layout.setRowStretch(2, 1)
-
-        # 实时自动保存状态标签
+        # Real-time auto-save status label
         self.status_label = QLabel("Settings automatically saved")
         self.status_label.setObjectName("status_label")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -582,57 +416,109 @@ class SettingsDialog(QDialog):
         status_layout = QHBoxLayout()
         status_layout.addStretch()
         status_layout.addWidget(self.status_label)
-        main_layout.addLayout(status_layout, 3, 0, 1, 2)
+        main_layout.addLayout(status_layout)
+
+    def add_sub_interface(self, widget: QWidget, object_name: str, text: str):
+        """Add sub-page to SegmentedWidget and QStackedWidget"""
+        widget.setObjectName(object_name)
+        self.segmented_widget.addItem(
+            routeKey=object_name,
+            text=text,
+            onClick=lambda: self.stacked_widget.setCurrentWidget(widget)
+        )
+
+    def on_current_index_changed(self, index):
+        """Handle current page change"""
+        widget = self.stacked_widget.widget(index)
+        if widget:
+            self.segmented_widget.setCurrentItem(widget.objectName())
 
     def load_settings(self):
         settings = QSettings("MyCompany", "ConverterApp")
         # Theme settings - always set to System Default (index 0)
         settings.setValue("theme", 0) # Force save System Default
+        
+        # Debug settings are now handled by the DebugSettingsWidget itself
+        
+        # Load Image Converter settings
+        if hasattr(self, 'image_converter_widget'):
+            self.image_converter_widget.load_settings()
 
 
 
     def _connect_settings_signals(self):
-        """连接所有设置控件的信号到实时保存"""
-        # 这里可以添加其他设置控件的信号连接
-        # 例如：self.comboBox.currentIndexChanged.connect(self.save_settings_async)
-        pass
+        """Connect all settings controls' signals to real-time saving"""
+        # Connect debug widget auto-save signals (already handled in DebugSettingsWidget)
+        # Debug settings are now handled by the DebugSettingsWidget itself
+        
+        # Connect update dialog settings
+        if hasattr(self, 'update_group') and hasattr(self.update_group, 'include_prerelease_checkbox'):
+            self.update_group.include_prerelease_checkbox.stateChanged.connect(self.on_settings_changed)
+        
+        # Connect image converter settings
+        if hasattr(self, 'image_converter_widget'):
+            self.image_converter_widget.settings_changed.connect(self.on_settings_changed)
+            # Also notify any open image converter windows about settings changes
+            self.image_converter_widget.settings_changed.connect(self._notify_image_converter_settings_changed)
+        
+        # Connect theme settings from parent window if available
+        if self.parent_window and hasattr(self.parent_window, 'settings'):
+            # Theme changes are handled by the parent window's auto-save mechanism
+            pass
+    
+    def on_settings_changed(self):
+        """Handle any settings change and trigger auto-save"""
+        self.save_settings_async()
     
     @Slot(str, bool)
     def _update_status_label(self, text, visible):
-        """安全更新状态标签的槽函数"""
+        """Safe update status label slot function"""
         self.status_label.setText(text)
         self.status_label.setVisible(visible)
     
+    def _notify_image_converter_settings_changed(self):
+        """Notify any open image converter windows about settings changes"""
+        # This method can be used to notify image converter instances
+        # about settings changes if needed in the future
+        pass
+    
     def save_settings_async(self):
-        """在独立线程中异步保存设置"""
+        """Asynchronously save settings in a separate thread"""
         def save_thread():
             settings = QSettings("MyCompany", "ConverterApp")
             # Theme settings - always System Default
             settings.setValue("theme", 0)
+            
+            # Debug settings are now handled by the DebugSettingsWidget itself
+            
+            # Save image converter settings
+            if hasattr(self, 'image_converter_widget'):
+                self.image_converter_widget.save_settings()
+            
             settings.sync() # Ensure settings are written to disk
             
-            # 通过信号在主线程中安全更新UI
-            self.update_status_signal.emit("Settings saved", True)
+            # Safely update UI in main thread via signal
+            #self.update_status_signal.emit("Settings saved", True)
             
-            # 2秒后隐藏状态标签
+            # Hide status label after 2 seconds
             time.sleep(2)
             self.update_status_signal.emit("", False)
         
-        # 启动独立线程执行保存操作
+        # Start separate thread to execute save operation
         thread = threading.Thread(target=save_thread)
         thread.daemon = True
         thread.start()
         
-        # 立即应用主题变更
+        # Apply theme changes immediately
         if self.parent_window:
             self.parent_window._apply_system_theme_from_settings()
     
     def accept(self):
-        """重写accept方法，只保存设置而不关闭对话框"""
+        """Override accept method to save settings without closing dialog"""
         self.save_settings_async()
     
     def reject(self):
-        """重写reject方法，保存设置并关闭对话框"""
+        """Override reject method to save settings and close dialog"""
         self.save_settings_async()
         super().reject()
 
@@ -640,6 +526,16 @@ class SettingsDialog(QDialog):
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     app = QApplication(sys.argv)
+    
+    # Initialize debug logger
+    try:
+        from support.debug_logger import debug_logger
+        debug_logger.setup_logger()
+        if debug_logger.is_debug_enabled():
+            print("Debug mode enabled - logging to ~/.converter/log")
+    except Exception as e:
+        print(f"Failed to initialize debug logger: {e}")
+    
     from support.toggle import theme_manager
     theme_manager.start()
     setTheme(Theme.AUTO)
@@ -648,5 +544,13 @@ if __name__ == "__main__":
     # Connect to palette changes for real-time theme switching ONLY if setting is System Default
     app.paletteChanged.connect(lambda: window._apply_system_theme(app.palette().color(QPalette.ColorRole.Window).lightnessF() < 0.5))
     exit_code = app.exec()
+    
+    # Cleanup debug logger
+    try:
+        from support.debug_logger import debug_logger
+        debug_logger.restore_output()
+    except:
+        pass
+    
     theme_manager.stop()
     sys.exit(exit_code)

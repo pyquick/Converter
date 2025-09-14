@@ -43,11 +43,14 @@ def compile_gui():
         "--include-package=zip_gui",
         "--include-package=gui_converter", 
         "--include-package=support",
+        "--include-package=update",  # 添加update包以确保所有更新功能正常工作
         "--macos-signed-app-name=com.pyquick.converter",
         "--enable-plugin=pyside6",
         "--prefer-source-code",
         "--output-dir=dist",      # Output directory
         "--remove-output", 
+        "--follow-imports",
+        # Python 3默认使用UTF-8编码，移除不支持的参数
         main_script
     ]
     
@@ -58,6 +61,7 @@ def compile_gui():
         #如果有launcher.app,则重命名为Converter.app
         if os.path.exists(os.path.join(current_dir, "dist", "launcher.app")):
             os.rename(os.path.join(current_dir, "dist", "launcher.app"), os.path.join(current_dir, "dist", "Converter.app"))
+        
         print("Executable created in dist/ directory")
         print("Copying Assets.car to Resources/")
         subprocess.run(["cp", os.path.join(current_dir,  "Assets.car"), os.path.join(current_dir, "dist", "Converter.app", "Contents", "Resources", "Assets.car")])

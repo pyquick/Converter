@@ -1,11 +1,14 @@
+# -*- coding: utf-8 -*-
 import requests
 import os
 import tempfile
 import zipfile
 import shutil
+import sys
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
-
+# Remove incompatible reconfigure calls for TextIO compatibility
 class UpdateDownloader:
     def __init__(self, download_url: str, target_directory: str, progress_callback=None):
         """
@@ -45,7 +48,7 @@ class UpdateDownloader:
             # 使用GitHub API获取release信息
             api_url = f"https://api.github.com/repos/pyquick/Converter/releases/tags/{tag_name}"
             response = requests.get(api_url, timeout=10)
-            
+            response.encoding = 'utf-8'
             if response.status_code != 200:
                 print(f"GitHub API请求失败: {api_url} (状态码: {response.status_code})")
                 # 回退到手动构建URL
@@ -119,8 +122,22 @@ class UpdateDownloader:
             # 下载文件到临时目录
             zip_path = os.path.join(self.temp_dir, "update.zip")
             
-            response = requests.get(actual_download_url, stream=True, timeout=60)
-            response.raise_for_status()
+            # 添加重试机制处理SSL错误
+            for attempt in range(3):
+                try:
+                    response = requests.get(actual_download_url, stream=True, timeout=30)
+                    response.raise_for_status()
+                    break  # 成功则跳出重试循环
+                except requests.exceptions.SSLError as ssl_error:
+                    if attempt == 2:  # 最后一次尝试
+                        raise ssl_error
+                    print(f"SSL错误 (尝试 {attempt + 1}/3): {ssl_error}")
+                    time.sleep(2)  # 等待2秒后重试
+                except requests.exceptions.RequestException as e:
+                    if attempt == 2:  # 最后一次尝试
+                        raise e
+                    print(f"网络错误 (尝试 {attempt + 1}/3): {e}")
+                    time.sleep(2)  # 等待2秒后重试
             
             total_size = int(response.headers.get('content-length', 0))
             downloaded = 0
@@ -134,10 +151,10 @@ class UpdateDownloader:
                         # 显示下载进度
                         if total_size > 0:
                             progress = int((downloaded / total_size) * 100)
-                            print(f"下载进度: {progress}% ({downloaded}/{total_size} bytes)")
-                            # 调用进度回调函数
+                            print(f"下载进度: {progress}% ({downloaded}/{total_size} bytes)",end="\r")
+                            # 调用进度回调函数，传递进度、已下载大小和总大小
                             if self.progress_callback:
-                                self.progress_callback(progress)
+                                self.progress_callback(progress, downloaded, total_size)
             
             print("下载完成，开始解压...")
             
@@ -154,19 +171,35 @@ class UpdateDownloader:
             }
             
         except requests.exceptions.RequestException as e:
-            return {
-                "status": "error",
-                "message": f"下载失败: {e}"
-            }
+            # 确保错误消息正确处理非ASCII字符
+            try:
+                error_message = str(e)
+                return {
+                    "status": "error",
+                    "message": f"下载失败: {error_message}"
+                }
+            except:
+                return {
+                    "status": "error",
+                    "message": "下载过程中发生编码错误"
+                }
         except Exception as e:
-            return {
-                "status": "error", 
-                "message": f"更新过程中发生错误: {e}"
-            }
+            # 确保错误消息正确处理非ASCII字符
+            try:
+                error_message = str(e)
+                return {
+                    "status": "error", 
+                    "message": f"更新过程中发生错误: {error_message}"
+                }
+            except:
+                return {
+                    "status": "error",
+                    "message": "处理更新时发生编码错误"
+                }
     
     def _extract_zip(self, zip_path: str):
         """解压zip文件到临时目录"""
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        with zipfile.ZipFile(zip_path, 'r', metadata_encoding='utf-8') as zip_ref:
             zip_ref.extractall(self.temp_dir)
         print(f"文件解压到: {self.temp_dir}")
     

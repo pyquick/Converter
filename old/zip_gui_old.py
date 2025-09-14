@@ -37,7 +37,7 @@ except ImportError:
 class ZipGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("ZIP File Processing Tool")
+        self.root.title("Archive File Processing Tool")
        # self.root.geometry("600x500")
         self.root.resizable(True, True)
         

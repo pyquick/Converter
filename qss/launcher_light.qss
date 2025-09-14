@@ -2,6 +2,7 @@ QWidget {
     background-color: #f0f0f0;
     font-family: Arial, sans-serif;
     color: #333;
+    border-radius: 20px;
 }
 QLabel {
     color: #333;
@@ -11,12 +12,16 @@ QPushButton {
     background-color: #2196F3;
     border: none;
     color: white;
-    padding: 14px 30px;
+    padding: 16px 35px;
     text-align: center;
     font-size: 16px;
-    margin: 10px 0;
-    border-radius: 10px;
+    margin: 12px 0;
+    border-radius: 20px;
     font-weight: bold;
+    backdrop-filter: blur(10px);
+}
+PushButton,ToolButton,PrimaryPushButton,PrimaryToolButton{
+    border-radius: 16px
 }
 QPushButton:hover {
     background-color: #1976D2;
@@ -25,14 +30,17 @@ QPushButton:pressed {
     background-color: #0D47A1;
 }
 #title_label {
-    font-size: 32px;
+    font-size: 34px;
     font-weight: bold;
-    margin-bottom: 25px;
+    margin-bottom: 30px;
     color: #2c3e50;
     text-align: center;
+    background-color: transparent;
+    border-radius: 16px;
 }
 #button_app {
     background-color: #007AFF;
+    border-radius: 22px;
 }
 #button_app:hover {
     background-color: #005BBF;
@@ -42,6 +50,7 @@ QPushButton:pressed {
 }
 #button_zip {
     background-color: #757575;
+    border-radius: 22px;
 }
 #button_zip:hover {
     background-color: #555;

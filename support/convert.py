@@ -33,7 +33,7 @@ def get_image_info(image_path):
     img = Image.open(image_path)
     return img.width, img.height
 
-def convert_image(input_path, output_path, output_format, min_size=16, max_size=None, progress_callback=None):
+def convert_image(input_path, output_path, output_format, min_size=16, max_size=None, progress_callback=None, interface_settings=None):
     """
     Convert an image to the specified format.
     
@@ -44,6 +44,7 @@ def convert_image(input_path, output_path, output_format, min_size=16, max_size=
         min_size (int): Minimum size for the icon (default: 16), primarily for ICNS.
         max_size (int): Maximum size for the icon (default: original image size), primarily for ICNS.
         progress_callback (function): Callback function to report progress.
+        interface_settings (dict): Interface behavior settings for controlling conversion behavior.
     """
     if output_format not in SUPPORTED_FORMATS:
         raise ValueError(f"Unsupported output format: {output_format}. Supported formats are: {', '.join(SUPPORTED_FORMATS)}")

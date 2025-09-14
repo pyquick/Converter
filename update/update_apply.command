@@ -73,10 +73,3 @@ if [ -f "$TARGET_DIR/$APP_NAME/Contents/MacOS/launcher" ]; then
 fi
 
 echo "✅ 更新完成！应用程序已复制到: $TARGET_DIR/$APP_NAME"
-echo "🚀 准备重启应用程序..."
-
-# 重启应用程序
-sleep 2
-open -n "$TARGET_DIR/$APP_NAME"
-
-exit 0

@@ -13,12 +13,14 @@ from PySide6.QtGui import QIcon, QFont, QPalette
 from PySide6.QtCore import Qt, QSize, Signal, QObject, QThread
 from qfluentwidgets import *
 
+from con import CON
 from support.toggle import ThemeManager
 # Add the current directory to Python path to import convertzip module
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from support.archive_manager import create_archive, extract_archive, add_to_archive, list_archive_contents, SUPPORTED_ARCHIVE_FORMATS
 
-
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
 # --- Worker Classes for QThread ---
 class CreateZipWorker(QObject):
     finished = Signal()
@@ -129,18 +131,32 @@ class ZipGUI(QMainWindow):
 
     def __init__(self, initial_dark_mode=False):
         super().__init__()
-        self.setWindowTitle("ZIP File Processing Tool")
+        self.setWindowTitle("Archive File Processing Tool")
         self.setGeometry(200, 200, 800, 600)
         self.setMinimumSize(600, 500)
         
-
+        self.themeListener = SystemThemeListener(self)
         self.init_variables()
         self.setup_ui()
         self._apply_theme(initial_dark_mode)
         self.center_window() # Center the window after UI setup
-       
+        self.qss_combo=CON.qss_combo
         setTheme(Theme.AUTO)
+        self.themeListener.start()
+        qconfig.themeChanged.connect(self._onThemeChanged)
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        # 停止监听器线程
+        if hasattr(self, 'themeListener'):
+            self.themeListener.terminate()
+            self.themeListener.deleteLater()
     
+        super().closeEvent(event)
+    def _onThemeChanged(self, theme: Theme):
+        """主题变化处理"""
+        # 更新界面以响应主题变化
+        self.update()
+        setTheme(Theme.AUTO)
     def init_variables(self):
         # Variables for Create ZIP tab
         self.create_sources = []
@@ -181,6 +197,9 @@ class ZipGUI(QMainWindow):
         
         # Add a stretch to the main_layout to push everything to the top
         self.main_layout.addStretch(1)
+        
+        # Apply custom stylesheets to all buttons after UI creation
+        self.apply_custom_styles()
 
     def _apply_theme(self, is_dark_mode):
         if is_dark_mode:
@@ -196,6 +215,17 @@ class ZipGUI(QMainWindow):
         cp = self.screen().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
+        
+    def apply_custom_styles(self):
+        """Apply custom stylesheets to all buttons after UI creation"""
+        try:
+            # Find all PushButton and PrimaryPushButton widgets and apply custom styles
+            for button in self.findChildren(PushButton):
+                setCustomStyleSheet(button, CON.qss, CON.qss)
+            for button in self.findChildren(PrimaryPushButton):
+                setCustomStyleSheet(button, CON.qss, CON.qss)
+        except Exception as e:
+            print(f"Warning: Could not apply custom stylesheets: {e}")
 
     # --- Tab creation methods (to be implemented with PySide6 widgets) ---
     def create_create_tab(self):
@@ -210,7 +240,7 @@ class ZipGUI(QMainWindow):
         self.create_output_text = LineEdit()
         self.create_output_text.setReadOnly(True)
         output_box_sizer.addWidget(self.create_output_text, 1)
-        output_button = QPushButton("Browse...")
+        output_button = PushButton("Browse...")
         output_button.clicked.connect(self.browse_create_output)
         output_box_sizer.addWidget(output_button)
         tab_sizer.addWidget(output_box)
@@ -218,10 +248,11 @@ class ZipGUI(QMainWindow):
         # Archive Format Selection (new)
         format_layout = QHBoxLayout()
         format_label = QLabel("Archive Format:")
-        self.create_format_combo = ComboBox()
+        self.create_format_combo = ModelComboBox()
         # Filter formats to only allow creation of supported types
         self.create_format_combo.addItems([f.upper() for f in SUPPORTED_ARCHIVE_FORMATS if f != 'rar' and f != 'tgz'])
         self.create_format_combo.setCurrentText("ZIP")
+        setCustomStyleSheet(self.create_format_combo, CON.qss_combo, CON.qss_combo)
         self.create_format_combo.currentIndexChanged.connect(self.on_create_format_change)
         format_layout.addWidget(format_label)
         format_layout.addWidget(self.create_format_combo, 1)
@@ -237,15 +268,15 @@ class ZipGUI(QMainWindow):
         
         # Buttons to add/remove sources
         button_sizer = QHBoxLayout()
-        add_files_button = QPushButton("Add Files...")
+        add_files_button = PushButton("Add Files...")
         add_files_button.clicked.connect(self.add_source_files)
         button_sizer.addWidget(add_files_button)
         
-        add_folder_button = QPushButton("Add Folder...")
+        add_folder_button = PushButton("Add Folder...")
         add_folder_button.clicked.connect(self.add_source_folder)
         button_sizer.addWidget(add_folder_button)
         
-        remove_button = QPushButton("Remove Selected")
+        remove_button = PushButton("Remove Selected")
         remove_button.clicked.connect(self.remove_source)
         button_sizer.addWidget(remove_button)
         button_sizer.addStretch(1) # Push buttons to left
@@ -263,7 +294,7 @@ class ZipGUI(QMainWindow):
         tab_sizer.addWidget(self.create_progress)
 
         # Create button
-        create_button = QPushButton("Create Archive") # Changed button text
+        create_button = PrimaryPushButton("Create Archive") # Changed button text
         create_button.clicked.connect(self.start_create_archive) # Changed signal
         tab_sizer.addWidget(create_button, 0, Qt.AlignmentFlag.AlignCenter)
         
@@ -281,7 +312,8 @@ class ZipGUI(QMainWindow):
         self.extract_zip_text = LineEdit()
         self.extract_zip_text.setReadOnly(True)
         zip_box_sizer.addWidget(self.extract_zip_text, 1)
-        zip_button = QPushButton("Browse...")
+        zip_button = PushButton("Browse...")
+
         zip_button.clicked.connect(self.browse_extract_archive) # Changed signal
         zip_box_sizer.addWidget(zip_button)
         tab_sizer.addWidget(zip_box)
@@ -293,7 +325,8 @@ class ZipGUI(QMainWindow):
         self.extract_dest_text = LineEdit()
         self.extract_dest_text.setReadOnly(True)
         dest_box_sizer.addWidget(self.extract_dest_text, 1)
-        dest_button = QPushButton("Browse...")
+        dest_button = PushButton("Browse...")
+
         dest_button.clicked.connect(self.browse_extract_dest)
         dest_box_sizer.addWidget(dest_button)
         tab_sizer.addWidget(dest_box)
@@ -308,7 +341,8 @@ class ZipGUI(QMainWindow):
         tab_sizer.addWidget(self.extract_progress)
 
         # Extract button
-        extract_button = QPushButton("Extract Archive") # Changed button text
+        extract_button = PrimaryPushButton("Extract Archive") # Changed button text
+
         extract_button.clicked.connect(self.start_extract_archive) # Changed signal
         tab_sizer.addWidget(extract_button, 0, Qt.AlignmentFlag.AlignCenter)
         
@@ -326,7 +360,8 @@ class ZipGUI(QMainWindow):
         self.add_zip_text = LineEdit()
         self.add_zip_text.setReadOnly(True)
         zip_box_sizer.addWidget(self.add_zip_text, 1)
-        zip_button = QPushButton("Browse...")
+        zip_button = PushButton("Browse...")
+
         zip_button.clicked.connect(self.browse_add_archive) # Changed signal
         zip_box_sizer.addWidget(zip_button)
         tab_sizer.addWidget(zip_box)
@@ -338,7 +373,8 @@ class ZipGUI(QMainWindow):
         self.add_file_text = LineEdit()
         self.add_file_text.setReadOnly(True)
         file_box_sizer.addWidget(self.add_file_text, 1)
-        file_button = QPushButton("Browse...")
+        file_button = PushButton("Browse...")
+
         file_button.clicked.connect(self.browse_add_file)
         file_box_sizer.addWidget(file_button)
         tab_sizer.addWidget(file_box)
@@ -353,7 +389,8 @@ class ZipGUI(QMainWindow):
         tab_sizer.addWidget(self.add_progress)
 
         # Add button
-        add_button = QPushButton("Add to Archive") # Changed button text
+        add_button = PrimaryPushButton("Add to Archive") # Changed button text
+
         add_button.clicked.connect(self.start_add_to_archive) # Changed signal
         tab_sizer.addWidget(add_button, 0, Qt.AlignmentFlag.AlignCenter)
         
@@ -371,7 +408,8 @@ class ZipGUI(QMainWindow):
         self.list_zip_text = LineEdit()
         self.list_zip_text.setReadOnly(True)
         zip_box_sizer.addWidget(self.list_zip_text, 1)
-        zip_button = QPushButton("Browse...")
+        zip_button = PushButton("Browse...")
+
         zip_button.clicked.connect(self.browse_list_archive) # Changed signal
         zip_box_sizer.addWidget(zip_button)
         tab_sizer.addWidget(zip_box)
@@ -385,7 +423,8 @@ class ZipGUI(QMainWindow):
         tab_sizer.addWidget(contents_box, 1) # Give contents box more stretch
 
         # List button
-        list_button = QPushButton("List Contents")
+        list_button = PrimaryPushButton("List Contents")
+
         list_button.clicked.connect(self.start_list_archive_contents) # Changed signal
         tab_sizer.addWidget(list_button, 0, Qt.AlignmentFlag.AlignCenter)
         

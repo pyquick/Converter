@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 UpdateDownloader 使用示例
 演示如何与UpdateManager配合使用下载功能
@@ -6,7 +7,6 @@ UpdateDownloader 使用示例
 
 import sys
 import os
-
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -20,7 +20,7 @@ def example_update_workflow():
     print("=== 应用程序更新工作流程示例 ===")
     
     # 1. 初始化更新管理器
-    current_version = "2.0.0B3"  # 从配置文件或代码中获取当前版本
+    current_version = "2.0.0B4"  # 从配置文件或代码中获取当前版本
     manager = UpdateManager(current_version)
     
     print(f"当前应用程序版本: {current_version}")
