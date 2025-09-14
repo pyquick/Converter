@@ -37,7 +37,7 @@ jobs:
                     ./dist/Converter_arm64_darwin.zip
     build_intel:
         name: Build Intel
-        runs-on: macos-13
+        runs-on: self-hosted
         if: github.repository_owner == 'pyquick'
         permissions:
             contents: write
