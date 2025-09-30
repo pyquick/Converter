@@ -32,14 +32,15 @@ from con import CON
 class CheckUpdateThread(QThread):
     check_finished = Signal(dict)
     
-    def __init__(self, update_manager, include_prerelease):
+    def __init__(self, update_manager, include_prerelease, prerelease_type=None):
         super().__init__()
         self.update_manager = update_manager
         self.include_prerelease = include_prerelease
+        self.prerelease_type = prerelease_type
     
     def run(self):
         try:
-            result = self.update_manager.check_for_updates(self.include_prerelease)
+            result = self.update_manager.check_for_updates(self.include_prerelease, self.prerelease_type)
             self.check_finished.emit(result)
         except Exception as e:
             self.check_finished.emit({"status": "error", "message": str(e)})
@@ -78,27 +79,46 @@ class DownloadThread(QThread):
 
 
 class UpdateDialog(QWidget):
-    __version__ = "2.0.0B4" 
+    __version__ = "2.0.0B5" 
 
     def __init__(self):
         super().__init__()
         # 移除SystemThemeListener以避免线程问题
         # self.themeListener = SystemThemeListener(self)
        
-        
+       
         self.setWindowTitle("Update Settings")
         self.update_manager = UpdateManager(self.__version__)
         self.check_thread = None
         self.download_thread = None
        
+        # 检测当前版本类型
+        self._detect_current_version_type()
         
         self.init_ui()
         self.load_settings()
         self.connect_auto_save_signals()
        
-    def closeEvent(self, e):
-       
-        super().closeEvent(e)
+    def _detect_current_version_type(self):
+        """检测当前版本类型，如果是Alpha或Deepdev版本，则限制可用通道"""
+        try:
+            # 解析当前版本
+            version_info = self.update_manager._parse_version(self.__version__)
+            _, _, _, current_tag, _ = version_info
+            
+            # 检查是否为Alpha或Deepdev版本
+            self.is_alpha_version = (current_tag == 'A')
+            self.is_deepdev_version = (current_tag == 'D')
+            self.is_internal_version = self.is_alpha_version or self.is_deepdev_version
+            
+            if self.is_internal_version:
+                print(f"检测到内部版本: {self.__version__} (标签: {current_tag})")
+            
+        except Exception as e:
+            print(f"版本检测失败: {e}")
+            self.is_internal_version = False
+            self.is_alpha_version = False
+            self.is_deepdev_version = False
     
 
     def init_ui(self):
@@ -115,10 +135,33 @@ class UpdateDialog(QWidget):
         # 添加顶部间距
         update_layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
         
-        # 创建开关样式的checkbox
-        self.include_prerelease_checkbox = CheckBox("Include pre-releases in update checks")
-        self.include_prerelease_checkbox.setMinimumHeight(60)
-        update_layout.addWidget(self.include_prerelease_checkbox)
+        # 添加版本类型选择器
+        prerelease_container = QHBoxLayout()
+        prerelease_container.setSpacing(10)
+        
+        self.prerelease_type_label = QLabel("Update channel:")
+        prerelease_container.addWidget(self.prerelease_type_label)
+        
+        self.prerelease_type_combo = ModelComboBox()
+        setCustomStyleSheet(self.prerelease_type_combo,CON.qss_combo_2,CON.qss_combo_2)
+        # 根据版本类型设置可用通道
+        if self.is_internal_version:
+            # 内部版本只显示对应的通道和稳定版
+            if self.is_alpha_version:
+                self.prerelease_type_combo.addItems([ "Alpha"])
+                print("Alpha版本：只显示Alpha通道")
+            elif self.is_deepdev_version:
+                self.prerelease_type_combo.addItems(["Deepdev"])
+                print("Deepdev版本：只显示Deepdev通道")
+        else:
+            # 普通版本显示所有通道
+            self.prerelease_type_combo.addItems(["Stable", "RC (Release Candidate)", "Beta", "Deepdev", "Alpha"])
+        
+        self.prerelease_type_combo.setFixedWidth(200)
+        prerelease_container.addWidget(self.prerelease_type_combo)
+        
+        prerelease_container.addStretch()
+        update_layout.addLayout(prerelease_container)
         
         self.update_status_label = QLabel("Ready to check for updates.")
         self.update_status_label.setMinimumHeight(60)
@@ -208,10 +251,10 @@ class UpdateDialog(QWidget):
         label_font.setPointSize(11)
         self.update_status_label.setFont(label_font)
         
-        # 设置复选框字体
-        checkbox_font = QFont()
-        checkbox_font.setPointSize(11)
-        self.include_prerelease_checkbox.setFont(checkbox_font)
+        # 设置标签字体
+        label_font = QFont()
+        label_font.setPointSize(11)
+        self.prerelease_type_label.setFont(label_font)
        
        
        
@@ -219,38 +262,96 @@ class UpdateDialog(QWidget):
 
     def load_settings(self):
         settings = QSettings("MyCompany", "ConverterApp")
-        include_prerelease = str(settings.value("include_prerelease", False)).lower() == "true"
-        self.include_prerelease_checkbox.setChecked(include_prerelease)
+        prerelease_type = settings.value("update/prerelease_type", "stable", type=str)
+        # 设置版本类型选择器
+        type_index = 0  # 默认为 "Stable"
+        if prerelease_type == "rc":
+            type_index = 1
+        elif prerelease_type == "beta":
+            type_index = 2
+        elif prerelease_type == "deepdev":
+            type_index = 3
+        elif prerelease_type == "alpha":
+            type_index = 4
+        self.prerelease_type_combo.setCurrentIndex(type_index)
 
     def save_settings(self):
-        settings = QSettings("MyCompany", "ConverterApp")
-        settings.setValue("include_prerelease", self.include_prerelease_checkbox.isChecked())
-        settings.sync()
+        """保存设置"""
+        try:
+            # 保存更新通道设置
+            prerelease_type = "stable"  # 默认
+            
+            # 根据选择的索引确定类型
+            current_index = self.prerelease_type_combo.currentIndex()
+            if current_index == 1:
+                prerelease_type = "rc"
+            elif current_index == 2:
+                prerelease_type = "beta"
+            elif current_index == 3:
+                prerelease_type = "deepdev"
+            elif current_index == 4:
+                prerelease_type = "alpha"
+            
+            settings = QSettings("MyCompany", "ConverterApp")
+            settings.setValue("update/prerelease_type", prerelease_type)
+            settings.sync()
+            
+        except Exception as e:
+            print(f"Error saving settings: {e}")
     
     def connect_auto_save_signals(self):
         """Connect UI controls to auto-save functionality"""
-        # Connect checkbox to auto-save
-        self.include_prerelease_checkbox.stateChanged.connect(self.auto_save_settings)
+        # Connect combo box to auto-save
+        self.prerelease_type_combo.currentIndexChanged.connect(self.on_update_channel_changed)
     
     def auto_save_settings(self):
         """Auto-save settings immediately upon change"""
         try:
             # Save settings immediately
             self.save_settings()
-            
-            # Try to notify parent settings dialog about the save
-            parent_widget = self.parent()
-            while parent_widget:
-                if hasattr(parent_widget, 'update_status_signal') and hasattr(parent_widget.update_status_signal, 'emit'):
-                    # Found settings dialog, emit save notification
-                    #parent_widget.update_status_signal.emit("Settings saved", True)
-                    break
-                parent_widget = parent_widget.parent()
-                
         except Exception as e:
             print(f"Error in auto_save_settings: {e}")
+    
+    def on_update_channel_changed(self, index):
+        """处理更新通道选择变化"""
+        # 自动保存设置
+        self.auto_save_settings()
+    
+    def _get_update_check_params(self):
+        """获取更新检查参数"""
+        prerelease_type = "stable"  # 默认稳定版
+        
+        current_index = self.prerelease_type_combo.currentIndex()
+        current_text = self.prerelease_type_combo.currentText()
+        
+        # 根据版本类型调整索引映射
+        if self.is_internal_version:
+            if self.is_alpha_version:
+                # Alpha版本：索引0=Stable, 索引1=Alpha
+                if current_index == 1:
+                    prerelease_type = "alpha"
+            elif self.is_deepdev_version:
+                # Deepdev版本：索引0=Stable, 索引1=Deepdev
+                if current_index == 1:
+                    prerelease_type = "deepdev"
+        else:
+            # 普通版本：标准索引映射
+            if current_index == 1:
+                prerelease_type = "rc"
+            elif current_index == 2:
+                prerelease_type = "beta"
+            elif current_index == 3:
+                prerelease_type = "deepdev"
+            elif current_index == 4:
+                prerelease_type = "alpha"
+        
+        # 根据通道类型决定是否包含预发布版本
+        include_prerelease = (prerelease_type != "stable")
+        
+        return include_prerelease, prerelease_type if include_prerelease else None
 
     def check_for_updates(self):
+        """检查更新"""
         self.update_status_label.setText("Checking for updates...")
         setThemeColor(getSystemAccentColor(), save=False)
         self.update_button.setEnabled(False)
@@ -266,18 +367,28 @@ class UpdateDialog(QWidget):
         self.progress_bar.start()
         QApplication.processEvents()  # 确保界面更新
         
-        include_prerelease = self.include_prerelease_checkbox.isChecked()
+        # 获取更新检查参数
+        include_prerelease, prerelease_type = self._get_update_check_params()
+        
         # Auto-save settings immediately when checking for updates
         self.auto_save_settings()
         
         # 启动检查更新线程
-        self.check_thread = CheckUpdateThread(self.update_manager, include_prerelease)
+        self.check_thread = CheckUpdateThread(self.update_manager, include_prerelease, prerelease_type if include_prerelease else None)
         self.check_thread.check_finished.connect(self.on_check_finished)
         self.check_thread.start()
     
     def on_check_finished(self, result):
         if result["status"] == "update_available":
-            self.update_status_label.setText(f"✅ {result['message']}\n\nVersion: {result['latest_version']}")
+            # 获取版本类型信息
+            version_type = ""
+            if "version_info" in result:
+                version_tuple = result["version_info"]
+                version_type = self.update_manager.get_version_type_name(version_tuple)
+                if version_type and version_type != "Stable":
+                    version_type = f" ({version_type})"
+            
+            self.update_status_label.setText(f"✅ {result['message']}\n\nVersion: {result['latest_version']}{version_type}")
             self.download_button.setVisible(True)
             self.download_button.setEnabled(True)
             self.current_update_info = result
@@ -496,7 +607,7 @@ class UpdateDialog(QWidget):
             temp_dir = self.update_result.get("temp_dir", "")
             if temp_dir and os.path.exists(temp_dir):
                 # 执行更新脚本
-                update_script_path = os.path.join(os.path.dirname(__file__), "update_apply.command")
+                update_script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "update", "update_apply.command")
                 
                 if os.path.exists(update_script_path):
                     try:
@@ -537,7 +648,7 @@ class UpdateDialog(QWidget):
         """重启应用程序"""
         try:
             # 执行重启脚本
-            restart_script_path = os.path.join(os.path.dirname(__file__), "restart.command")
+            restart_script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "update", "restart.command")
             
             if os.path.exists(restart_script_path):
                 # 执行重启脚本

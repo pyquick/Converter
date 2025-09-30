@@ -18,7 +18,7 @@ def compile_gui():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Define the main script to compile
-    main_script = os.path.join(current_dir, "launcher.py")
+    main_script = os.path.join(current_dir, "Converter.py")
     
     # Check if the main script exists
     if not os.path.exists(main_script):
@@ -35,9 +35,7 @@ def compile_gui():
         print("Running Pyinstaller compilation...")
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         print("Compilation successful!")
-        #如果有launcher.app,则重命名为Converter.app
-        if os.path.exists(os.path.join(current_dir, "dist", "launcher.app")):
-            os.rename(os.path.join(current_dir, "dist", "launcher.app"), os.path.join(current_dir, "dist", "Converter.app"))
+        #如果有Converter.app,则重命名为Converter.app
         return True
     except subprocess.CalledProcessError as e:
         print("Compilation failed!")
@@ -148,7 +146,7 @@ def main():
     if gui_success and cli_success and zip_success:
         print("All compilations completed successfully!")
         print("Executables are located in the 'dist' directory:")
-        print("- GUI application: dist/launcher.app")
+        print("- GUI application: dist/Converter.app")
         print("- CLI application: dist/convert.bin")
     else:
         print("Some compilations failed. Please check the error messages above.")

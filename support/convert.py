@@ -18,7 +18,7 @@ import shutil
 import subprocess
 from PIL import Image
 
-SUPPORTED_FORMATS = ["icns", "png", "jpg", "webp", "bmp", "gif", "tiff", "ico", "jpeg"]
+SUPPORTED_FORMATS = ["icns", "png", "jpg", "webp", "bmp", "gif", "tiff", "ico", "jpeg", "svg", "heic", "heif", "avif", "jxl", "pdf", "eps", "dds", "exr"]
 
 def get_image_info(image_path):
     """
@@ -33,7 +33,7 @@ def get_image_info(image_path):
     img = Image.open(image_path)
     return img.width, img.height
 
-def convert_image(input_path, output_path, output_format, min_size=16, max_size=None, progress_callback=None, interface_settings=None):
+def convert_image(input_path, output_path, output_format, min_size=16, max_size=None, quality=85, progress_callback=None, interface_settings=None):
     """
     Convert an image to the specified format.
     
@@ -43,6 +43,7 @@ def convert_image(input_path, output_path, output_format, min_size=16, max_size=
         output_format (str): Desired output format (e.g., "icns", "png", "jpg", "webp").
         min_size (int): Minimum size for the icon (default: 16), primarily for ICNS.
         max_size (int): Maximum size for the icon (default: original image size), primarily for ICNS.
+        quality (int): Image quality for lossy formats like JPG (default: 85, range: 1-100).
         progress_callback (function): Callback function to report progress.
         interface_settings (dict): Interface behavior settings for controlling conversion behavior.
     """
@@ -83,10 +84,55 @@ def convert_image(input_path, output_path, output_format, min_size=16, max_size=
                     progress_callback(f"Image converted to RGB mode", 50)
             
             # Save with appropriate options for each format
+            save_options = {}
+            
             if output_format.lower() == "jpg":
-                # Save JPG with high quality and optimized settings
-                img.save(output_path, format='JPEG', quality=95, optimize=True, progressive=True)
+                # Save JPG with specified quality and optimized settings
+                img.save(output_path, format='JPEG', quality=quality, optimize=True, progressive=True)
+            elif output_format.lower() == "webp":
+                # Save WebP with quality settings
+                save_options = {'quality': quality, 'method': 6}
+                img.save(output_path, format='WEBP', **save_options)
+            elif output_format.lower() == "tiff":
+                # Save TIFF with compression
+                save_options = {'compression': 'tiff_lzw'}
+                img.save(output_path, format='TIFF', **save_options)
+            elif output_format.lower() in ["svg", "pdf", "eps"]:
+                # Vector formats require special handling
+                # For now, convert raster image to these formats with basic settings
+                if progress_callback:
+                    progress_callback(f"Converting to vector format {output_format.upper()}...", 70)
+                img.save(output_path, format=output_format.upper())
+            elif output_format.lower() in ["heic", "heif"]:
+                # HEIC/HEIF format support
+                if progress_callback:
+                    progress_callback(f"Converting to {output_format.upper()} format...", 70)
+                # Try to save as HEIF if available, otherwise fallback
+                try:
+                    img.save(output_path, format='HEIF', quality=quality)
+                except Exception:
+                    # Fallback to PNG if HEIF not supported
+                    if progress_callback:
+                        progress_callback(f"HEIF format not available, falling back to PNG", 80)
+                    img.save(output_path, format='PNG')
+            elif output_format.lower() in ["avif", "jxl"]:
+                # Modern formats that may require additional libraries
+                if progress_callback:
+                    progress_callback(f"Converting to {output_format.upper()} format...", 70)
+                try:
+                    img.save(output_path, format=output_format.upper(), quality=quality)
+                except Exception as format_error:
+                    # Fallback to WebP if modern format not supported
+                    if progress_callback:
+                        progress_callback(f"{output_format.upper()} format not available, falling back to WebP", 80)
+                    img.save(output_path, format='WEBP', quality=quality)
+            elif output_format.lower() in ["dds", "exr"]:
+                # Specialized formats for gaming and HDR
+                if progress_callback:
+                    progress_callback(f"Converting to {output_format.upper()} format...", 70)
+                img.save(output_path, format=output_format.upper())
             else:
+                # Default handling for other formats
                 img.save(output_path, format=output_format.upper())
                 
             if progress_callback:

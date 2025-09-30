@@ -1,7 +1,9 @@
-Pillow
-Nuitka
+Pillow>=8.0.0
+Nuitka>=2.7.0
 PySide6
 rarfile
 py7zr
 requests
 PySide6-Fluent-Widgets[full]
+libarchive-c
+patool

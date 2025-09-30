@@ -289,20 +289,10 @@ class DebugSettingsWidget(QWidget):
         self.auto_save_settings()
     
     def auto_save_settings(self):
-        """Auto-save settings and notify parent if exists"""
+        """Auto-save settings"""
         try:
             # Force sync settings to disk
             self.settings.sync()
-            
-            # Try to notify parent settings dialog about the save
-            parent_widget = self.parent()
-            while parent_widget:
-                if hasattr(parent_widget, 'update_status_signal') and hasattr(parent_widget.update_status_signal, 'emit'):
-                    # Found settings dialog, emit save notification
-                    #parent_widget.update_status_signal.emit("Settings saved", True)
-                    break
-                parent_widget = parent_widget.parent()
-                
         except Exception as e:
             print(f"Error in auto_save_settings: {e}")
 

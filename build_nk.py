@@ -18,7 +18,7 @@ def compile_gui():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Define the main script to compile
-    main_script = os.path.join(current_dir, "launcher.py")
+    main_script = os.path.join(current_dir, "Converter.py")
     
     # Check if the main script exists
     if not os.path.exists(main_script):
@@ -29,10 +29,16 @@ def compile_gui():
     cmd = [
         sys.executable, "-m", "nuitka",
         "--standalone",           # Create standalone executable
+        "--assume-yes-for-downloads",   # Assume yes for downloads  
+        
         "--macos-create-app-bundle", # Create macOS app bundle
         "--macos-app-icon=" + os.path.join(current_dir,"AppIcon.icns"), # App icon
         "--include-data-file=" + os.path.join(current_dir,"zip.png")+ f"=./zip.png",
         "--include-data-file=" + os.path.join(current_dir,"update","update_apply.command")+ f"=./update/update_apply.command",
+        "--include-data-file=" + os.path.join(current_dir,"update","restart.command")+ f"=./update/restart.command",
+        "--include-data-file=" + os.path.join(current_dir,"update","README.md")+ f"=./update/README.md",
+        "--include-data-file=" + os.path.join(current_dir,"update","download_update.py")+ f"=./update/download_update.py",
+        "--include-data-file=" + os.path.join(current_dir,"update","update_manager.py")+ f"=./update/update_manager.py",
         "--include-data-file=" + os.path.join(current_dir,"zipd.png")+ f"=./zipd.png",
         "--include-data-file=" + os.path.join(current_dir,"AppIcon.png")+ f"=./AppIcon.png",
         "--include-data-file=" + os.path.join(current_dir,"AppIcond.png")+ f"=./AppIcond.png",
@@ -40,16 +46,16 @@ def compile_gui():
         "--macos-app-name=Converter", # App name
         "--macos-app-mode=gui",
         "--macos-app-version=2.0",
-        "--include-package=zip_gui",
-        "--include-package=gui_converter", 
+        "--include-package=arc_gui",
+        "--include-package=image_converter", 
         "--include-package=support",
         "--include-package=update",  # 添加update包以确保所有更新功能正常工作
-        "--include-package=debug",  # 添加update包以确保所有更新功能正常工作
         "--macos-signed-app-name=com.pyquick.converter",
         "--enable-plugin=pyside6",
         "--prefer-source-code",
         "--output-dir=dist",      # Output directory
         "--remove-output", 
+        "--follow-imports",
         # Python 3默认使用UTF-8编码，移除不支持的参数
         main_script
     ]
@@ -58,9 +64,7 @@ def compile_gui():
         print("Running Nuitka compilation...")
         subprocess.run(cmd, check=True, text=True)
         print("Compilation successful!")
-        #如果有launcher.app,则重命名为Converter.app
-        if os.path.exists(os.path.join(current_dir, "dist", "launcher.app")):
-            os.rename(os.path.join(current_dir, "dist", "launcher.app"), os.path.join(current_dir, "dist", "Converter.app"))
+        
         
         print("Executable created in dist/ directory")
         print("Copying Assets.car to Resources/")
@@ -70,6 +74,24 @@ def compile_gui():
         subprocess.run(["cp", os.path.join(current_dir, "AppIcon.icns"), os.path.join(current_dir, "dist", "Converter.app", "Contents", "MacOS", "AppIcon.icns")])
         subprocess.run(["cp", os.path.join(current_dir, "AppIcon.png"), os.path.join(current_dir, "dist", "Converter.app", "Contents", "MacOS", "AppIcon.png")])
         subprocess.run(["cp", os.path.join(current_dir, "AppIcond.png"), os.path.join(current_dir, "dist", "Converter.app", "Contents", "MacOS", "AppIcond.png")])
+        
+        # Copy update directory and scripts to MacOS/update/
+        print("Copying update directory to MacOS/")
+        update_dest_dir = os.path.join(current_dir, "dist", "Converter.app", "Contents", "MacOS", "update")
+        os.makedirs(update_dest_dir, exist_ok=True)
+        
+        # Copy all update files
+        update_files = ["update_apply.command", "restart.command", "README.md", "download_update.py", "update_manager.py"]
+        for file_name in update_files:
+            src_file = os.path.join(current_dir, "update", file_name)
+            dest_file = os.path.join(update_dest_dir, file_name)
+            if os.path.exists(src_file):
+                subprocess.run(["cp", src_file, dest_file])
+                print(f"Copied {file_name} to update/")
+                # Ensure scripts have execute permissions
+                if file_name.endswith(".command"):
+                    subprocess.run(["chmod", "+x", dest_file])
+                    print(f"Set execute permissions for {file_name}")
         return True
     except subprocess.CalledProcessError as e:
         print("Compilation failed!")
@@ -99,7 +121,7 @@ def main():
     if gui_success:
         print("All compilations completed successfully!")
         print("Executables are located in the 'dist' directory:")
-        print("- GUI application: dist/launcher.app")
+        print("- GUI application: dist/Converter.app")
     else:
         print("Some compilations failed. Please check the error messages above.")
         if not gui_success:

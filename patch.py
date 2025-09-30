@@ -6,7 +6,7 @@ def _patch_sdk_version() -> None:
         Minor visual anomalies and padding issues exist, disable if not addressed before release
         """
         _application_output="./dist/Converter.app"
-        _file = _application_output + "/Contents" + "/MacOS" + "/launcher"
+        _file = _application_output + "/Contents" + "/MacOS" + "/Converter"
 
         _find    = b'\x00\x01\x0C\x00'
         _replace = b'\x00\x00\x1A\x00'
@@ -34,7 +34,7 @@ def _patch_load_command():
               sdk 10.9
         """
         _application_output="./dist/Converter.app"
-        _file = _application_output + "/Contents" + "/MacOS" + "/launcher"
+        _file = _application_output + "/Contents" + "/MacOS" + "/Converter"
 
         _find    = b'\x00\x0D\x0A\x00'
         _replace = b'\x00\x0A\x0A\x00' # 10.10 (0xA0A)

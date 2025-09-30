@@ -20,6 +20,10 @@ datas = [
    ('Assets.car', '.'),
    ('zip.png', '.'),
    ('zipd.png', '.'),
+   ('AppIcon.icns,'.'),
+   ('AppIcond.icns,'.'),
+   ('AppIcond.png,'.'),
+   ('AppIcon.png,'.'),
 ]
 
 a = Analysis(['launcher.py'],

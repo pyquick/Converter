@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Simple launcher script for PNG to ICNS Converter
+# Simple Converter script for PNG to ICNS Converter
 # This script can be used as an alternative to a compiled .app bundle
 
 # Get the directory where this script is located
@@ -22,7 +22,7 @@ fi
 echo "Starting PNG to ICNS Converter..."
 echo ""
 
-python3.13 launcher.py
+python3.13 Converter.py
 
 # Check if the command was successful
 if [ $? -eq 0 ]; then

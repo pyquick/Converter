@@ -33,13 +33,13 @@ class ImageConverterSettingsWidget(QWidget):
         
         self.auto_preview_check = CheckBox("Auto-show preview after selecting file")
         behavior_layout.addWidget(self.auto_preview_check)
-        
+        behavior_layout.addSpacing(10)
         self.remember_path_check = CheckBox("Remember last selected input/output paths")
         behavior_layout.addWidget(self.remember_path_check)
-        
+        behavior_layout.addSpacing(10)
         self.completion_notify_check = CheckBox("Show success notification after conversion")
         behavior_layout.addWidget(self.completion_notify_check)
-        
+        behavior_layout.addSpacing(10)
         main_layout.addWidget(behavior_group)
         
         main_layout.addStretch()

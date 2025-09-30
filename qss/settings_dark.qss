@@ -10,6 +10,42 @@ QLabel {
     background-color: transparent;
 }
 
+/* Checkbox Styles */
+QCheckBox {
+    color: #e0e0e0;
+    background-color: transparent;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    background-color: transparent;
+    border: 2px solid #5a5a5a;
+    border-radius: 16px;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0078d4;
+    border-color: #0078d4;
+    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20,6 9,17 4,12'></polyline></svg>");
+}
+
+QCheckBox::indicator:hover {
+    border-color: #0078d4;
+    background-color: rgba(0, 120, 212, 0.1);
+}
+
+QCheckBox::indicator:checked:hover {
+    background-color: #106ebe;
+    border-color: #106ebe;
+}
+
+QCheckBox:focus {
+    outline: none;
+    background-color: transparent;
+}
+
 QPushButton {
     background-color: #2196F3;
     border: none;
@@ -18,7 +54,6 @@ QPushButton {
     border-radius: 18px;
     font-weight: bold;
     font-size: 13px;
-    backdrop-filter: blur(10px);
 }
 PushButton,ToolButton,PrimaryPushButton,PrimaryToolButton{
     border-radius: 16px
@@ -39,7 +74,6 @@ QComboBox {
     color: #ffffff;
     selection-background-color: #4a90e2;
     selection-color: #ffffff;
-    backdrop-filter: blur(10px);
 }
 
 QComboBox:editable {
@@ -55,7 +89,6 @@ QGroupBox {
     font-weight: bold;
     background-color: rgba(51, 51, 51, 0.4);
     color: #e0e0e0;
-    backdrop-filter: blur(15px);
 }
 
 QGroupBox::title {
@@ -86,7 +119,6 @@ QComboBox::drop-down {
     border-top-right-radius: 15px;
     border-bottom-right-radius: 15px;
     background-color: rgba(68, 68, 68, 0.7);
-    backdrop-filter: blur(5px);
 }
 
 QComboBox::down-arrow {
@@ -107,7 +139,6 @@ QComboBox QAbstractItemView {
     selection-background-color: #4a90e2;
     selection-color: #ffffff;
     outline: 0px;
-    backdrop-filter: blur(15px);
 }
 
 QComboBox QAbstractItemView::item {
@@ -163,4 +194,29 @@ QPushButton#settings_button:hover {
 
 QPushButton#settings_button:pressed {
     background-color: #0D47A1;
+}
+
+/* Text Elements with Transparent Backgrounds */
+QWidget QLabel {
+    background-color: transparent;
+}
+
+SegmentedWidget QLabel {
+    background-color: transparent;
+    color: #e0e0e0;
+}
+
+StackedWidget QLabel {
+    background-color: transparent;
+    color: #e0e0e0;
+}
+
+/* Ensure all text has transparent background */
+* {
+    selection-background-color: rgba(0, 120, 212, 0.3);
+}
+
+*:focus {
+    outline: none;
+    background-color: transparent;
 }

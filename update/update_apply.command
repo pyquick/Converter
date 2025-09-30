@@ -50,10 +50,10 @@ echo "🔧 设置可执行文件权限..."
 find "$SOURCE_APP" -name "*.app" -exec chmod -R 755 {} \;
 find "$SOURCE_APP" -path "*/Contents/MacOS/*" -exec chmod +x {} \;
 
-# 特别设置launcher可执行文件权限
-if [ -f "$SOURCE_APP/Contents/MacOS/launcher" ]; then
-    chmod +x "$SOURCE_APP/Contents/MacOS/launcher"
-    echo "✅ 设置 launcher 可执行权限"
+# 特别设置Converter可执行文件权限
+if [ -f "$SOURCE_APP/Contents/MacOS/Converter" ]; then
+    chmod +x "$SOURCE_APP/Contents/MacOS/Converter"
+    echo "✅ 设置 Converter 可执行权限"
 fi
 
 # 删除目标目录中的旧程序
@@ -68,8 +68,8 @@ cp -R "$SOURCE_APP" "$TARGET_DIR/"
 chmod -R 755 "$TARGET_DIR/$APP_NAME"
 find "$TARGET_DIR/$APP_NAME" -path "*/Contents/MacOS/*" -exec chmod +x {} \;
 
-if [ -f "$TARGET_DIR/$APP_NAME/Contents/MacOS/launcher" ]; then
-    chmod +x "$TARGET_DIR/$APP_NAME/Contents/MacOS/launcher"
+if [ -f "$TARGET_DIR/$APP_NAME/Contents/MacOS/Converter" ]; then
+    chmod +x "$TARGET_DIR/$APP_NAME/Contents/MacOS/Converter"
 fi
 
 echo "✅ 更新完成！应用程序已复制到: $TARGET_DIR/$APP_NAME"

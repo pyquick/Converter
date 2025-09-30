@@ -21,14 +21,16 @@ def setup_ccache():
     ccache_version = f"v{version}"
     ccache_url = f"https://nuitka.net/ccache/{ccache_version}/ccache-{version}.zip"
     cache_dir = f"/Users/{username}/Library/Caches/Nuitka/downloads/ccache/{ccache_version}"
-    zip_path = os.path.join(cache_dir, f"ccache-{ccache_version}.zip")
+    zip_path = os.path.join(cache_dir, f"ccache-{version}.zip")
     
     print(f"Setting up ccache {ccache_version}")
     print(f"Cache directory: {cache_dir}")
     
     # Create directories if they don't exist
-    os.makedirs(cache_dir, exist_ok=True)
     
+    os.makedirs(cache_dir, exist_ok=True)
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
     # Download ccache
     if not os.path.exists(zip_path):
         print(f"Downloading ccache from {ccache_url}")
@@ -42,6 +44,11 @@ def setup_ccache():
                  open(zip_path, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
             print("Download completed successfully")
+            # Set execute permission for the zip file
+            os.chmod(zip_path, 0o755)
+            #解压zip文件
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(cache_dir)
         except Exception as e:
             print(f"Failed to download ccache: {e}")
             print("\nManual setup instructions:")

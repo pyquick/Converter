@@ -29,7 +29,7 @@ jobs:
               if: github.event_name == 'push'
               uses: softprops/action-gh-release@v2
               with:
-                tag_name: 2.0.0B4
+                tag_name: 2.0.0B5
                 name: 2.0.0 Beta 4
                 body: ${{ github.event.head_commit.message }}
                 prerelease: true
@@ -37,7 +37,7 @@ jobs:
                     ./dist/Converter_arm64_darwin.zip
     build_intel:
         name: Build Intel
-        runs-on: self-hosted
+        runs-on: macos-13
         if: github.repository_owner == 'pyquick'
         permissions:
             contents: write
@@ -53,7 +53,7 @@ jobs:
               if: github.event_name == 'push'
               uses: softprops/action-gh-release@v2
               with:
-                tag_name: 2.0.0B4
+                tag_name: 2.0.0B5
                 name: 2.0.0 Beta 4
                 body: ${{ github.event.head_commit.message }}
                 prerelease: true

@@ -11,8 +11,8 @@ echo "Building PNG to ICNS Converter..."
 echo "Project directory: $PROJECT_DIR"
 
 # Check if required files exist
-if [ ! -f "$PROJECT_DIR/launcher.py" ]; then
-    echo "Error: launcher.py not found in project directory"
+if [ ! -f "$PROJECT_DIR/Converter.py" ]; then
+    echo "Error: Converter.py not found in project directory"
     exit 1
 fi
 
@@ -87,7 +87,7 @@ python3.13 -m nuitka \
     --output-dir="$DIST_DIR" \
     --remove-output \
     --enable-plugin=pyside6 \
-    "$PROJECT_DIR/launcher.py" && BUILD_SUCCESS=1
+    "$PROJECT_DIR/Converter.py" && BUILD_SUCCESS=1
 
 # If that fails, try alternative approaches
 if [ $BUILD_SUCCESS -eq 0 ]; then
@@ -103,7 +103,7 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
         --macos-app-icon="$PROJECT_DIR/AppIcon.icns" \
         --include-data-dir="$PROJECT_DIR/support=support" \
         --output-dir="$DIST_DIR" \
-        "$PROJECT_DIR/launcher.py" && BUILD_SUCCESS=1
+        "$PROJECT_DIR/Converter.py" && BUILD_SUCCESS=1
 fi
 
 if [ $BUILD_SUCCESS -eq 0 ]; then
@@ -118,7 +118,7 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
         --include-data-dir="$PROJECT_DIR/support=support" \
         --output-dir="$DIST_DIR" \
         --macos-app-version=1.0 \
-        "$PROJECT_DIR/launcher.py" && BUILD_SUCCESS=1
+        "$PROJECT_DIR/Converter.py" && BUILD_SUCCESS=1
 fi
 
 if [ $BUILD_SUCCESS -eq 0 ]; then
@@ -137,13 +137,13 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     # Copy required files
     echo "Copying application files..."
     cp -r "$PROJECT_DIR/support" "$RESOURCES_DIR/"
-    cp "$PROJECT_DIR/launcher.py" "$RESOURCES_DIR/"
+    cp "$PROJECT_DIR/Converter.py" "$RESOURCES_DIR/"
     
-    # Create a simple launcher script
+    # Create a simple Converter script
     LAUNCHER_SCRIPT="$MACOS_DIR/png_to_icns_converter"
     echo "#!/bin/bash" > "$LAUNCHER_SCRIPT"
     echo "cd \"\$(dirname \"\$0\")/../Resources\" || exit 1" >> "$LAUNCHER_SCRIPT"
-    echo "python3.13 launcher.py" >> "$LAUNCHER_SCRIPT"
+    echo "python3.13 Converter.py" >> "$LAUNCHER_SCRIPT"
     chmod +x "$LAUNCHER_SCRIPT"
     
     # Create Info.plist
@@ -207,7 +207,7 @@ else
     echo "Build failed with all approaches!"
     echo "Recommendations:"
     echo "1. Run the application directly with Python 3.13:"
-    echo "   python3.13 launcher.py"
+    echo "   python3.13 Converter.py"
     echo "2. Use the simple launcher script:"
     echo "   ./PNG_to_ICNS_Converter.command"
     exit 1

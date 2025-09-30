@@ -35,11 +35,12 @@ class ConversionWorker(QObject):
     progress_updated = Signal(str, int)
     conversion_error = Signal(str)
 
-    def __init__(self, input_path, output_path, output_format, min_size_param=None, max_size_param=None):
+    def __init__(self, input_path, output_path, output_format, min_size_param=None, max_size_param=None, quality_param=None):
         super().__init__()
         self.input_path = input_path
         self.output_path = output_path
         self.output_format = output_format
+        self.quality = int(quality_param) if quality_param is not None else 85
         self.qss=CON.qss
         if output_format == "icns":
             self.min_size = int(min_size_param) if min_size_param is not None else 16
@@ -58,6 +59,7 @@ class ConversionWorker(QObject):
                     self.output_format,
                     int(self.min_size) if self.min_size is not None else 16, # 显式转换为 int
                     int(self.max_size) if self.max_size is not None else None, # 显式转换为 int
+                    quality=self.quality,
                     progress_callback=self._update_progress_callback
                 )
             else:
@@ -65,6 +67,7 @@ class ConversionWorker(QObject):
                     self.input_path,
                     self.output_path,
                     self.output_format,
+                    quality=self.quality,
                     progress_callback=self._update_progress_callback
                 )
             self.finished.emit()
@@ -381,10 +384,11 @@ class ICNSConverterGUI(QMainWindow):
         input_layout = QHBoxLayout()
         input_label = QLabel("Input File:")
         self.input_text = LineEdit()
-        self.input_text.setReadOnly(True)
+        # self.input_text.setReadOnly(True)  # 允许用户手动输入路径
         input_button = PushButton("Browse...")
         # Apply custom style to input button
         setCustomStyleSheet(input_button, CON.qss, CON.qss)
+        setCustomStyleSheet(self.input_text, CON.qss_line, CON.qss_line)
         input_button.clicked.connect(self.on_browse_input)
 
         input_layout.addWidget(input_label)
@@ -396,10 +400,11 @@ class ICNSConverterGUI(QMainWindow):
         output_layout = QHBoxLayout()
         output_label = QLabel("Output File:")
         self.output_text = LineEdit()
-        self.output_text.setReadOnly(True)
+        # self.output_text.setReadOnly(True)  # 允许用户手动输入路径
         output_button = PushButton("Browse...")
         # Apply custom style to output button
         setCustomStyleSheet(output_button, CON.qss, CON.qss)
+        setCustomStyleSheet(self.output_text, CON.qss_line, CON.qss_line)
         output_button.clicked.connect(self.on_browse_output)
 
         output_layout.addWidget(output_label)
@@ -434,11 +439,11 @@ class ICNSConverterGUI(QMainWindow):
         info_group_layout = QVBoxLayout(info_group_box)
         info_group_layout.setContentsMargins(10, 25, 10, 10)
         right_side_v_layout.addWidget(info_group_box, 0) # No stretch for info, compact
-
+        self.qss_lie="""LineEdit{ border-radius: 15px; }"""
         self.info_text = LineEdit()
-        setCustomStyleSheet(self.info_text, CON.qss_line, CON.qss_line)
+        setCustomStyleSheet(self.info_text, self.qss_lie, self.qss_lie)
         self.info_text.setText("No image selected")
-        self.info_text.setReadOnly(True)
+        self.info_text.setReadOnly(True)  # 不允许用户手动输入信息
         self.info_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info_group_layout.addWidget(self.info_text)
 
@@ -677,15 +682,15 @@ class ICNSConverterGUI(QMainWindow):
         format_layout.setContentsMargins(5, 2, 5, 2)
         
         format_label = QLabel("Output Format:")
-        self.qss_combo=CON.qss_combo
+        
         self.format_combo = ModelComboBox()
-        setCustomStyleSheet(self.format_combo, self.qss_combo, self.qss_combo)
+        
         self.format_combo.addItems(convert.SUPPORTED_FORMATS)
         
         self.format_combo.currentIndexChanged.connect(self.on_format_change)
         
         format_layout.addWidget(format_label)
-        
+        setCustomStyleSheet(self.format_combo, CON.qss_combo, CON.qss_combo)
         format_layout.addWidget(self.format_combo)
         
         format_item = QTreeWidgetItem()
@@ -740,7 +745,7 @@ class ICNSConverterGUI(QMainWindow):
         auto_widget = QWidget()
         auto_layout = QHBoxLayout(auto_widget)
         auto_layout.setContentsMargins(5, 2, 5, 2)
-        auto_widget.setMinimumSize(200, 52)
+        auto_widget.setMinimumSize(10, 52)  # 适当调小按钮尺寸
         self.auto_button = PrimaryPushButton("Auto-detect Max Size")
         # Apply custom style to auto button
         setCustomStyleSheet(self.auto_button, CON.qss, CON.qss)
@@ -926,6 +931,11 @@ class ICNSConverterGUI(QMainWindow):
         self.preview_label.setFont(font)
         self.preview_label.setText(placeholder_text)
         self.preview_label.setPixmap(QPixmap()) # Clear any previous image
+        
+        # Enable drag and drop for the preview label
+        self.preview_label.setAcceptDrops(True)
+        self.preview_label.dragEnterEvent = self.dragEnterEvent
+        self.preview_label.dropEvent = self.dropEvent
 
     def on_browse_input(self):
         file_dialog = QFileDialog(self)
@@ -1040,9 +1050,29 @@ class ICNSConverterGUI(QMainWindow):
                 self.max_spin.setValue(self.max_size)
                 self.status_bar.showMessage(f"Max size auto-detected: {self.max_size}")
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Could not detect image size: {str(e)}")
+                PopupTeachingTip.create(
+                    target=self.auto_button,
+                    icon=InfoBarIcon.ERROR,
+                    title='ERROR',
+                    content=f"Could not detect image size: {str(e)}",
+                    isClosable=True,
+                    tailPosition=TeachingTipTailPosition.LEFT_BOTTOM,
+                    duration=10000,
+                    parent=self
+                )
+                
         else:
-            QMessageBox.warning(self, "Warning", "Please select an input file first.")
+            PopupTeachingTip.create(
+                    target=self.auto_button,
+                    icon=InfoBarIcon.WARNING,
+                    title='Warning',
+                    content="Please select an input file first.",
+                    isClosable=True,
+                    tailPosition=TeachingTipTailPosition.RIGHT_BOTTOM,
+                    duration=2000,
+                    parent=self
+            )
+            
             
     def show_preview(self):
         if self.input_path and os.path.exists(self.input_path):
@@ -1113,21 +1143,108 @@ class ICNSConverterGUI(QMainWindow):
         # If auto_preview setting changed, update preview behavior
         if hasattr(self, 'input_path') and self.input_path and self.auto_preview:
             self.show_preview()
+    
+    def dragEnterEvent(self, event):
+        """Handle drag enter events for image files"""
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            # Check if any URL is a valid image file
+            for url in urls:
+                if url.isLocalFile():
+                    file_path = url.toLocalFile()
+                    if os.path.isfile(file_path):
+                        # Check if it's an image file
+                        image_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.ico', '.webp']
+                        if any(file_path.lower().endswith(ext) for ext in image_extensions):
+                            event.acceptProposedAction()
+                            return
+            event.ignore()
+        else:
+            event.ignore()
+    
+    def dropEvent(self, event):
+        """Handle drop events for image files"""
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            image_files = []
+            
+            # Collect all valid image files
+            for url in urls:
+                if url.isLocalFile():
+                    file_path = url.toLocalFile()
+                    if os.path.isfile(file_path):
+                        # Check if it's an image file
+                        image_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.ico', '.webp']
+                        if any(file_path.lower().endswith(ext) for ext in image_extensions):
+                            image_files.append(file_path)
+            
+            if image_files:
+                # Use the first image file
+                self.input_path = image_files[0]
+                self.input_text.setText(self.input_path)
+                
+                # Remember the directory for next time if setting is enabled
+                if self.remember_path:
+                    self.last_input_dir = os.path.dirname(self.input_path)
+                
+                self.auto_set_output()
+                
+                # Show preview if auto_preview setting is enabled
+                if self.auto_preview:
+                    self.show_preview()
+                
+                self.update_image_info()
+                
+                # Show success message
+                self.status_bar.showMessage(f"Loaded {len(image_files)} image(s) via drag & drop")
+                
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+        else:
+            event.ignore()
             
     def on_start_conversion(self):
         if self.converting:
             return
             
         if not self.input_path:
-            QMessageBox.critical(self, "Error", "Please select an input image file.")
+            PopupTeachingTip.create(
+                target=self.convert_button,
+                icon=InfoBarIcon.ERROR,
+                title='ERROR',
+                content=f"Please select an input image file.",
+                isClosable=True,
+                tailPosition=TeachingTipTailPosition.TOP,
+                duration=2000,
+                parent=self
+            )
             return
-            
+
         if not self.output_path:
-            QMessageBox.critical(self, "Error", f"Please specify an output {str(self.output_format).upper()} file.")
+            PopupTeachingTip.create(
+                target=self.convert_button,
+                icon=InfoBarIcon.ERROR,
+                title='ERROR',
+                content=f"Please specify an output {str(self.output_format).upper()} file.",
+                isClosable=True,
+                tailPosition=TeachingTipTailPosition.TOP,  
+                duration=2000,
+                parent=self
+            )
             return
             
         if not os.path.exists(self.input_path):
-            QMessageBox.critical(self, "Error", "Input file does not exist.")
+            PopupTeachingTip.create(
+                target=self.convert_button,
+                icon=InfoBarIcon.ERROR,
+                title='ERROR',
+                content=f"Input file does not exist.",
+                isClosable=True,
+                tailPosition=TeachingTipTailPosition.TOP,
+                duration=2000,
+                parent=self
+            )
             return
             
         self.converting = True
@@ -1138,7 +1255,8 @@ class ICNSConverterGUI(QMainWindow):
         self._worker = ConversionWorker(
             self.input_path, self.output_path, self.output_format,
             self.min_size, # 始终传递整数值
-            self.max_size  # 始终传递整数值
+            self.max_size,  # 始终传递整数值
+            self.quality  # 传递图像质量参数
         )
         self._thread = QThread() 
         self._worker.moveToThread(self._thread)
@@ -1179,8 +1297,16 @@ class ICNSConverterGUI(QMainWindow):
         if hasattr(self, '_thread') and self._thread.isRunning():
             self._thread.quit()
             self._thread.wait()
-        QMessageBox.critical(self, "Conversion Failed", error_message)
-
+        PopupTeachingTip.create(
+            target=self.convert_button,
+            icon=InfoBarIcon.ERROR,
+            title='ERROR',
+            content=f"Conversion Failed,{error_message}",
+            isClosable=True,
+            tailPosition=TeachingTipTailPosition.TOP,
+            duration=2000,
+            parent=self
+        )
         self.progress_label.setText("Conversion Failed")
 
     def show_success_view(self):
@@ -1207,9 +1333,28 @@ class ICNSConverterGUI(QMainWindow):
                 else:  # Linux and other POSIX systems
                     subprocess.run(["xdg-open", self.output_path])
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"无法打开文件: {e}")
+                PopupTeachingTip.create(
+                    target=self.convert_button,
+                    icon=InfoBarIcon.ERROR,
+                    title='ERROR',
+                    content=f"Conversion Failed:\n,{e}",
+                    isClosable=True,
+                    tailPosition=TeachingTipTailPosition.TOP,
+                    duration=2000,
+                    parent=self
+                )
         else:
-            QMessageBox.critical(self, "Error", "找不到转换后的文件。")
+           
+            PopupTeachingTip.create(
+                target=self.convert_button,
+                icon=InfoBarIcon.ERROR,
+                title='ERROR',
+                content=f"Conversion Failed: Cannot find the converted file.",
+                isClosable=True,
+                tailPosition=TeachingTipTailPosition.TOP,
+                duration=2000,
+                parent=self
+            )
 
     def show_main_view(self):
         # Hide the success widget if it's shown

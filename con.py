@@ -1,9 +1,11 @@
 class _CON:
     def __init__(self):
         self.theme_system=""
-        self.qss_combo="""ModelComboBox{ border-radius: 24px}\nModelComboBox QAbstractItemView{ border-radius: 24px}"""
+        self.qss_seg="SegmentedWidget{ border-radius: 12px; }"   
+        self.qss_combo="""ModelComboBox{ border-radius: 24px; }"""
+        self.qss_combo_2="""ModelComboBox{ border-radius: 14px; }"""
         self.qss_spin="""SpinBox{ border-radius: 16px; }"""
-        self.qss_line="""LineEdit{ border-radius: 15px; }"""
+        self.qss_line="""LineEdit{ border-radius: 16px; }"""
         self.qss = """PushButton,ToolButton,PrimaryPushButton,PrimaryToolButton{ border-radius: 24px; }"""
         self.qss_debug = """PushButton,ToolButton,PrimaryPushButton,PrimaryToolButton{ border-radius: 16px; }"""
         self.USER_AGENTS = {

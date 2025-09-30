@@ -57,7 +57,7 @@ python3 support/convert.py input.png output.icns --min-size 16 --max-size 512
 
 For a graphical interface, run:
 ```
-python3 launcher.py
+python3 Converter.py
 ```
 
 ## Building a Standalone Application
@@ -119,7 +119,7 @@ python3 convertzip.py list archive.zip
 
 For a graphical interface for ZIP file operations, run:
 ```
-python3 zip_gui.py
+python3 arc_gui.py
 ```
 
 The GUI provides tabs for:
@@ -128,9 +128,9 @@ The GUI provides tabs for:
 - Adding files to existing ZIP files
 - Listing the contents of ZIP files
 
-## Alternative: Simple Launcher Script
+## Alternative: Simple Converter Script
 
-If you cannot build the application with Nuitka, you can use the provided launcher script:
+If you cannot build the application with Nuitka, you can use the provided Converter script:
 ```
 ./PNG_to_ICNS_Converter.command
 ```
@@ -172,7 +172,7 @@ This will generate icons in sizes: 16x16, 32x32, 64x64, 128x128, and 256x256, in
 
 To use the GUI version:
 ```
-python3 launcher.py
+python3 Converter.py
 ```
 
 The GUI provides a user-friendly interface with:
@@ -193,14 +193,14 @@ To build a standalone macOS application, run:
 
 This will create a .app bundle in the dist folder that can be run without requiring Python to be installed.
 
-If you encounter issues with the build process, you can use the simple launcher script instead:
+If you encounter issues with the build process, you can use the simple Converter script instead:
 ```
 ./PNG_to_ICNS_Converter.command
 ```
 
 Or run directly with Python 3.13:
 ```
-python3.13 launcher.py
+python3.13 Converter.py
 ```
 
 For ZIP file operations, you can use either the command line:
@@ -210,5 +210,5 @@ python3 convertzip.py [command] [options]
 
 Or the GUI:
 ```
-python3 zip_gui.py
+python3 arc_gui.py
 ```

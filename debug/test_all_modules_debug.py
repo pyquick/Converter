@@ -49,27 +49,27 @@ def test_all_modules_debug():
     except Exception as e:
         print(f"❌ update.update_manager模块导入失败: {e}")
     
-    # 测试3: gui_converter模块
+    # 测试3: image_converter模块
     try:
-        import gui_converter
-        print("✅ gui_converter模块导入成功")
+        import image_converter
+        print("✅ image_converter模块导入成功")
         
-        # 测试gui_converter模块的输出
-        print("测试gui_converter模块输出...")
+        # 测试image_converter模块的输出
+        print("测试image_converter模块输出...")
         
     except Exception as e:
-        print(f"❌ gui_converter模块导入失败: {e}")
+        print(f"❌ image_converter模块导入失败: {e}")
     
-    # 测试4: zip_gui模块
+    # 测试4: arc_gui模块
     try:
-        import zip_gui
-        print("✅ zip_gui模块导入成功")
+        import arc_gui
+        print("✅ arc_gui模块导入成功")
         
-        # 测试zip_gui模块的输出
-        print("测试zip_gui模块输出...")
+        # 测试arc_gui模块的输出
+        print("测试arc_gui模块输出...")
         
     except Exception as e:
-        print(f"❌ zip_gui模块导入失败: {e}")
+        print(f"❌ arc_gui模块导入失败: {e}")
     
     # 测试debug_logger函数
     try:

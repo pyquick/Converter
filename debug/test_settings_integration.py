@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from PySide6.QtWidgets import QApplication
-from launcher import SettingsDialog, IconButtonsWindow
+from Converter import SettingsDialog, IconButtonsWindow
 
 def test_settings_integration():
     """Test the Debug Settings GUI Widget integration in SettingsDialog"""

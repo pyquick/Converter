@@ -59,7 +59,7 @@ QGroupBox::title {
 }
 QProgressBar {
     border: none;
-    border-radius: 12px;
+    border-radius: 16px;
     text-align: center;
     background-color: rgba(224, 224, 224, 0.6);
     color: #333333;
@@ -67,7 +67,7 @@ QProgressBar {
 }
 QProgressBar::chunk {
     background-color: #2196F3; /* Blue */
-    border-radius: 12px;
+    border-radius: 16px;
 }
 QTabWidget::pane {
     border: none;
