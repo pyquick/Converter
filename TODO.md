@@ -1,75 +1,63 @@
-# TODO List
+# PNG/ICNS Converter Application
 
-## New Features:
-1. ✅ GitHub PAT (Personal Access Token) 支持
-   - ✅ 添加PAT输入界面到通用设置
-   - ✅ 实现PAT加密存储
-   - ✅ 在更新管理器中使用PAT进行GitHub API调用
-   - ✅ 添加PAT安全机制
+## Overview
+A modern desktop application for converting PNG images to ICNS format (macOS icons) with additional archive management functionality.
 
-2. xxx
+## Features
+- PNG to ICNS conversion
+- Archive management (ZIP handling)
+- Modern UI with QFluentWidgets
+- Theme support (Light/Dark/Auto)
+- Settings management
+- Debug logging support
+- **NEW: Animated app launching with fade in/out effects**
 
-## Bug Fixes:
-1. xxx
+## Project Structure
+- `Converter.py` - Main application entry point and UI
+- `image_converter.py` - PNG to ICNS conversion functionality
+- `arc_gui.py` - Archive management functionality
+- `support/` - Supporting modules (themes, settings, debug logging)
+- `test/` - Test files
 
-## Improvements:
-1. xxx
+## Requirements
+- Python 3.13
+- PySide6
+- QFluentWidgets
+- Pillow (PIL)
 
----
+## Usage
+```bash
+pip3.13 install -r requirements.txt
+python3 Converter.py
+```
 
-## Alpha/Deepdev版本通道过滤 - ✅ 已完成
+## Recent Updates
 
-### 目标
-实现对Alpha和Deepdev版本的特殊处理，确保内部版本只显示对应的更新通道，提升用户体验和版本管理的准确性。
+### 动态效果实现总结
 
-### 具体任务
-1. **版本类型检测** - ✅ 已完成
-   - 在UpdateManager中增强版本解析功能
-   - 识别版本号中的Alpha(A)和Deepdev(D)标识
-   - 将Alpha/D版本标记为内部版本
+#### New Features:
+1. 实现了AnimatedAppDialog基类，提供淡入淡出动画效果
+2. 创建了ImageAppDialog类，用于Image Converter应用的动画启动
+3. 创建了ZipAppDialog类，用于Archive Manager应用的动画启动
+4. 实现了多进程启动外部应用的功能
+5. 添加了加载指示器(IndeterminateProgressBar)提升用户体验
 
-2. **通道过滤逻辑** - ✅ 已完成
-   - Alpha版本仅显示"Alpha"和"Stable"通道
-   - Deepdev版本仅显示"Deepdev"和"Stable"通道
-   - 普通版本显示所有5个通道(Beta, Alpha, Deepdev, RC, Stable)
+#### Bug Fixes:
+1. 修复了重复的ZipAppDialog类定义问题
+2. 修复了ImageAppDialog类缺失的问题
+3. 修复了run_image_app和run_zip_app函数中的主窗口检测逻辑
+4. 修复了AttributeError: 'IconButtonsWindow' object has no attribute 'run_image_app'错误
 
-3. **参数映射调整** - ✅ 已完成
-   - 内部版本使用简化索引映射(0: Alpha, 1: Stable)
-   - 普通版本保持原有映射(0: Beta, 1: Alpha, 2: Deepdev, 3: RC, 4: Stable)
+#### Improvements:
+1. 优化了动画对话框的UI布局，添加了标题和加载指示器
+2. 实现了主窗口检测机制，通过遍历QApplication.topLevelWidgets()查找IconButtonsWindow实例
+3. 添加了异常处理和回退机制，确保在主窗口未找到时仍能启动应用
+4. 优化了动画时序，对话框显示后300ms启动外部应用，1秒后自动关闭
+5. 统一了动画风格，使用QPropertyAnimation实现平滑的淡入淡出效果
 
-### 技术实现
-- **版本解析增强**: 在`UpdateManager._parse_version()`中增加对Alpha和Deepdev标签的识别
-- **内部版本判断**: 添加`is_internal_version()`方法判断版本类型
-- **通道过滤**: 在UI层根据版本类型过滤显示的更新通道
-- **参数映射**: 根据版本类型调整`prerelease_types`数组的索引映射
-
-### 测试结果
-- ✅ 版本检测功能正确识别Alpha/D版本为内部版本
-- ✅ 通道过滤逻辑对Alpha/D版本仅显示对应通道
-- ✅ 参数映射逻辑正确处理不同版本类型的索引选择
-- ✅ 真实环境测试验证功能正确性
-
-### 完成状态
-- 功能实现: ✅ 完成
-- 单元测试: ✅ 通过
-- 集成测试: ✅ 通过
-- 文档更新: ✅ 完成
-
----
-
-## 之前的任务记录...
-
-### 设置合并 - ✅ 已完成
-将图像转换器设置合并到通用设置中，简化设置界面结构。
-
-### Update Command Script Not Found - ✅ 已修复
-修复了更新命令脚本找不到的问题，确保更新功能正常运行。
-
-### Pre-release版本支持 - ✅ 已完成
-实现了对预发布版本的支持，包括版本解析、更新检查和用户界面显示。
-
-### 更新通道UI优化 - ✅ 已完成
-优化了更新通道的用户界面，提供更好的用户体验和版本选择功能。
-
-### Beta版本更新检查问题分析 - ✅ 已完成
-分析并解决了Beta版本更新检查中的问题，确保更新功能的稳定性和准确性。
+#### 技术实现:
+- 使用QPropertyAnimation控制窗口透明度实现淡入淡出效果
+- 使用QTimer.singleShot实现延迟启动和自动关闭
+- 使用multiprocessing.Process在独立进程中运行外部应用
+- 使用IndeterminateProgressBar提供视觉反馈
+- 遵循PySide6编码规范，使用类型注解和文档字符串

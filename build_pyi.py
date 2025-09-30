@@ -139,11 +139,15 @@ def main():
     # Compile both versions
     gui_success = compile_gui()
     print()
-    cli_success = compile_cli()
-    print()
-    zip_success = compile_cli_zip()
-    print("\n" + "=" * 40)
-    if gui_success and cli_success and zip_success:
+    
+    if gui_success:
+        print("GUI Compilation successful!")
+        print("Executable created in dist/ directory")
+    else:
+        print("GUI Compilation failed!")
+        return False
+    
+    if gui_success:
         print("All compilations completed successfully!")
         print("Executables are located in the 'dist' directory:")
         print("- GUI application: dist/Converter.app")

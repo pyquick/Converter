@@ -16,10 +16,11 @@ from PySide6.QtWidgets import (
     QSpacerItem,
     QGridLayout,
     QSizePolicy,
-    QGroupBox
+    QGroupBox,
+    QDialog
 )
 from PySide6.QtGui import QIcon, QPainter, QPixmap, QPalette
-from PySide6.QtCore import QSize, Qt, QSettings
+from PySide6.QtCore import QSize, Qt, QSettings, QPropertyAnimation, QEasingCurve, QTimer
 import multiprocessing
 from qfluentwidgets import Theme, setTheme
  # Keep for freeze_support, but remove direct Process usage
@@ -252,6 +253,146 @@ class IconButtonsWindow(QWidget):
         self._settings_dialog = settings_dialog  # Save dialog reference
         settings_dialog.show() # Use show() instead of exec() to keep dialog non-modal
 
+class AnimatedAppDialog(QDialog):
+    def __init__(self, parent=None, app_type=""):
+        super().__init__(parent)
+        self.app_type = app_type
+        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setModal(False)  # Non-modal
+        
+        # Animation for showing the dialog
+        self.animation = QPropertyAnimation(self, b"windowOpacity")
+        self.animation.setDuration(250)  # Duration in milliseconds
+        self.animation.setStartValue(0.0)
+        self.animation.setEndValue(1.0)
+        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        
+        # Animation for closing the dialog
+        self.close_animation = QPropertyAnimation(self, b"windowOpacity")
+        self.close_animation.setDuration(200)
+        self.close_animation.setStartValue(1.0)
+        self.close_animation.setEndValue(0.0)
+        self.close_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.close_animation.finished.connect(self._finish_close)
+        
+        self._should_close = False
+        
+    def showEvent(self, event):
+        # Start animation when the dialog is shown
+        self.animation.start()
+        super().showEvent(event)
+        # Start the external app after animation
+        QTimer.singleShot(300, self.start_external_app)
+        
+    def closeEvent(self, event):
+        if not self._should_close:
+            event.ignore()
+            self.close_animation.start()
+        else:
+            super().closeEvent(event)
+            
+    def _finish_close(self):
+        self._should_close = True
+        self.close()
+        
+    def start_external_app(self):
+        """Start the external app in a separate process"""
+        try:
+            if self.app_type == "image":
+                multiprocessing.Process(target=run_image).start()
+            elif self.app_type == "zip":
+                multiprocessing.Process(target=run_zip).start()
+        except Exception as e:
+            print(f"Error starting {self.app_type} app: {e}")
+        finally:
+            # Close the animation dialog after starting the external app
+            QTimer.singleShot(1000, self.close)
+
+class ImageAppDialog(AnimatedAppDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent, "image")
+        self.setFixedSize(400, 200)
+        self.center_on_screen()
+        
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Title
+        title = QLabel("Image Converter")
+        title.setStyleSheet("""
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        """)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Subtitle
+        subtitle = QLabel("正在启动应用...")
+        subtitle.setStyleSheet("""
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+        """)
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+        
+        # Loading indicator
+        from qfluentwidgets import IndeterminateProgressBar
+        progress = IndeterminateProgressBar()
+        layout.addWidget(progress)
+        
+    def center_on_screen(self):
+        screen = QApplication.primaryScreen().geometry()
+        self.move(
+            screen.center().x() - self.width() // 2,
+            screen.center().y() - self.height() // 2
+        )
+
+class ZipAppDialog(AnimatedAppDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent, "zip")
+        self.setFixedSize(400, 200)
+        self.center_on_screen()
+        
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Title
+        title = QLabel("Archive Manager")
+        title.setStyleSheet("""
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        """)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Subtitle
+        subtitle = QLabel("正在启动应用...")
+        subtitle.setStyleSheet("""
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+        """)
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+        
+        # Loading indicator
+        from qfluentwidgets import IndeterminateProgressBar
+        progress = IndeterminateProgressBar()
+        layout.addWidget(progress)
+        
+    def center_on_screen(self):
+        screen = QApplication.primaryScreen().geometry()
+        self.move(
+            screen.center().x() - self.width() // 2,
+            screen.center().y() - self.height() // 2
+        )
+
 def run_zip():
     from arc_gui import ZipAppRunner
     app_runner = ZipAppRunner()
@@ -260,10 +401,53 @@ def run_image():
     from image_converter import ICNSConverterApp
     app_runner = ICNSConverterApp()
     app_runner.MainLoop()
-def run_zip_app():
-    multiprocessing.Process(target=run_zip).start()
 def run_image_app():
-    multiprocessing.Process(target=run_image).start()
+    """Run the image converter app with animation"""
+    try:
+        # Get the main window instance
+        app = QApplication.instance()
+        main_window = None
+        for widget in app.topLevelWidgets():
+            if isinstance(widget, IconButtonsWindow):
+                main_window = widget
+                break
+        
+        if main_window:
+            # Create and show the animation dialog
+            dialog = ImageAppDialog(main_window)
+            dialog.show()
+        else:
+            # Fallback to multiprocessing if no main window found
+            multiprocessing.Process(target=run_image).start()
+            
+    except Exception as e:
+        print(f"Error running image app: {e}")
+        # Fallback to multiprocessing
+        multiprocessing.Process(target=run_image).start()
+
+def run_zip_app():
+    """Run the archive manager app with animation"""
+    try:
+        # Get the main window instance
+        app = QApplication.instance()
+        main_window = None
+        for widget in app.topLevelWidgets():
+            if isinstance(widget, IconButtonsWindow):
+                main_window = widget
+                break
+        
+        if main_window:
+            # Create and show the animation dialog
+            dialog = ZipAppDialog(main_window)
+            dialog.show()
+        else:
+            # Fallback to multiprocessing if no main window found
+            multiprocessing.Process(target=run_zip).start()
+            
+    except Exception as e:
+        print(f"Error running zip app: {e}")
+        # Fallback to multiprocessing
+        multiprocessing.Process(target=run_zip).start()
 
 
 

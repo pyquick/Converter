@@ -11,7 +11,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.security import encrypt_pat, decrypt_pat
-
+from con import CON
 class GeneralSettingsWidget(QWidget):
     """General settings widget"""
     
@@ -66,6 +66,7 @@ class GeneralSettingsWidget(QWidget):
         self.pat_input.setPlaceholderText("ghp_xxxxxxxxxxxxxxxxxxxx")
         self.pat_input.setClearButtonEnabled(True)
         self.pat_input.setFixedHeight(33)
+        setCustomStyleSheet(self.pat_input,"PasswordLineEdit{ border-radius: 16px; }","PasswordLineEdit{ border-radius: 16px; }")
         pat_layout.addWidget(pat_label)
         pat_layout.addWidget(self.pat_input)
         github_layout.addLayout(pat_layout)
@@ -74,9 +75,10 @@ class GeneralSettingsWidget(QWidget):
         pat_info = QLabel("Used for GitHub API access, recommend only 'repo' permission")
         pat_info.setStyleSheet("color: #666; font-size: 11px;")
         github_layout.addWidget(pat_info)
-        
+        self.qss_debug = """PushButton{ border-radius: 12px; }"""
         # PAT Test Button
         test_pat_btn = PushButton("Test PAT")
+        setCustomStyleSheet(test_pat_btn,self.qss_debug,self.qss_debug)
         test_pat_btn.clicked.connect(self.test_pat)
         github_layout.addWidget(test_pat_btn)
         

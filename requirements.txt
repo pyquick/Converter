@@ -7,3 +7,4 @@ requests
 PySide6-Fluent-Widgets[full]
 libarchive-c
 patool
+cryptography
